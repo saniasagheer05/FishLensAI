@@ -1,0 +1,10 @@
+﻿node_modules/
+ml/data/
+tflite_env/
+.expo/
+dist/
+web-build/
+*.log
+.env
+__pycache__/
+*.pyc

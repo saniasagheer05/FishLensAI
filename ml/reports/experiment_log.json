@@ -1,0 +1,617 @@
+[
+  {
+    "exp_id": "exp1_baseline",
+    "name": "MobileNetV3-Small Baseline (Leakage-Free pHash Data)",
+    "arch": "mobilenet_v3_small",
+    "model_path": "C:\\Users\\Sania Sagheer\\.gemini\\antigravity\\scratch\\FishLensAI\\ml\\models\\exp1_baseline_mobilenet_v3_small.pth",
+    "best_epoch": 6,
+    "best_val_acc": 0.6714,
+    "best_val_loss": 1.1561,
+    "test_top1_acc": 0.5714,
+    "test_top3_acc": 0.8442,
+    "macro_precision": 0.5834,
+    "macro_recall": 0.5779,
+    "macro_f1": 0.5676,
+    "per_class": {
+      "catla": {
+        "precision": 0.625,
+        "recall": 0.45454545454545453,
+        "f1": 0.5263157894736842,
+        "support": 11
+      },
+      "hilsa": {
+        "precision": 0.5,
+        "recall": 0.6363636363636364,
+        "f1": 0.56,
+        "support": 11
+      },
+      "indian_mackerel": {
+        "precision": 0.8571428571428571,
+        "recall": 0.5454545454545454,
+        "f1": 0.6666666666666666,
+        "support": 11
+      },
+      "mrigal": {
+        "precision": 0.16666666666666666,
+        "recall": 0.09090909090909091,
+        "f1": 0.11764705882352941,
+        "support": 11
+      },
+      "pomfret": {
+        "precision": 0.9090909090909091,
+        "recall": 1.0,
+        "f1": 0.9523809523809523,
+        "support": 10
+      },
+      "rohu": {
+        "precision": 0.3333333333333333,
+        "recall": 0.5,
+        "f1": 0.4,
+        "support": 12
+      },
+      "tilapia": {
+        "precision": 0.6923076923076923,
+        "recall": 0.8181818181818182,
+        "f1": 0.75,
+        "support": 11
+      }
+    },
+    "confusion_matrix": [
+      [
+        5,
+        1,
+        0,
+        2,
+        0,
+        2,
+        1
+      ],
+      [
+        1,
+        7,
+        1,
+        0,
+        1,
+        1,
+        0
+      ],
+      [
+        0,
+        3,
+        6,
+        1,
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        2,
+        0,
+        1,
+        0,
+        7,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      [
+        1,
+        1,
+        0,
+        2,
+        0,
+        6,
+        2
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        9
+      ]
+    ]
+  },
+  {
+    "exp_id": "exp2_advanced_aug",
+    "name": "MobileNetV3-Small + Advanced Domain Augmentation & RandomErasing",
+    "arch": "mobilenet_v3_small",
+    "model_path": "C:\\Users\\Sania Sagheer\\.gemini\\antigravity\\scratch\\FishLensAI\\ml\\models\\exp2_advanced_aug_mobilenet_v3_small.pth",
+    "best_epoch": 12,
+    "best_val_acc": 0.5714,
+    "best_val_loss": 1.1624,
+    "test_top1_acc": 0.6494,
+    "test_top3_acc": 0.9351,
+    "macro_precision": 0.6631,
+    "macro_recall": 0.6537,
+    "macro_f1": 0.6505,
+    "per_class": {
+      "catla": {
+        "precision": 0.7142857142857143,
+        "recall": 0.45454545454545453,
+        "f1": 0.5555555555555556,
+        "support": 11
+      },
+      "hilsa": {
+        "precision": 0.6363636363636364,
+        "recall": 0.6363636363636364,
+        "f1": 0.6363636363636364,
+        "support": 11
+      },
+      "indian_mackerel": {
+        "precision": 0.6666666666666666,
+        "recall": 0.7272727272727273,
+        "f1": 0.6956521739130435,
+        "support": 11
+      },
+      "mrigal": {
+        "precision": 0.4444444444444444,
+        "recall": 0.36363636363636365,
+        "f1": 0.4,
+        "support": 11
+      },
+      "pomfret": {
+        "precision": 0.9090909090909091,
+        "recall": 1.0,
+        "f1": 0.9523809523809523,
+        "support": 10
+      },
+      "rohu": {
+        "precision": 0.47058823529411764,
+        "recall": 0.6666666666666666,
+        "f1": 0.5517241379310345,
+        "support": 12
+      },
+      "tilapia": {
+        "precision": 0.8,
+        "recall": 0.7272727272727273,
+        "f1": 0.7619047619047619,
+        "support": 11
+      }
+    },
+    "confusion_matrix": [
+      [
+        5,
+        0,
+        1,
+        1,
+        0,
+        3,
+        1
+      ],
+      [
+        1,
+        7,
+        3,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        3,
+        8,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        1,
+        0,
+        4,
+        0,
+        5,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        2,
+        1,
+        8,
+        1
+      ],
+      [
+        0,
+        0,
+        0,
+        2,
+        0,
+        1,
+        8
+      ]
+    ]
+  },
+  {
+    "exp_id": "exp3_label_smoothing",
+    "name": "MobileNetV3-Small + Label Smoothing (eps=0.1) & High Dropout (0.4)",
+    "arch": "mobilenet_v3_small",
+    "model_path": "C:\\Users\\Sania Sagheer\\.gemini\\antigravity\\scratch\\FishLensAI\\ml\\models\\exp3_label_smoothing_mobilenet_v3_small.pth",
+    "best_epoch": 7,
+    "best_val_acc": 0.5429,
+    "best_val_loss": 1.3634,
+    "test_top1_acc": 0.5844,
+    "test_top3_acc": 0.9091,
+    "macro_precision": 0.5685,
+    "macro_recall": 0.5851,
+    "macro_f1": 0.5683,
+    "per_class": {
+      "catla": {
+        "precision": 0.5384615384615384,
+        "recall": 0.6363636363636364,
+        "f1": 0.5833333333333334,
+        "support": 11
+      },
+      "hilsa": {
+        "precision": 0.5454545454545454,
+        "recall": 0.5454545454545454,
+        "f1": 0.5454545454545454,
+        "support": 11
+      },
+      "indian_mackerel": {
+        "precision": 0.7777777777777778,
+        "recall": 0.6363636363636364,
+        "f1": 0.7,
+        "support": 11
+      },
+      "mrigal": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 11
+      },
+      "pomfret": {
+        "precision": 0.8888888888888888,
+        "recall": 0.8,
+        "f1": 0.8421052631578947,
+        "support": 10
+      },
+      "rohu": {
+        "precision": 0.42857142857142855,
+        "recall": 0.75,
+        "f1": 0.5454545454545454,
+        "support": 12
+      },
+      "tilapia": {
+        "precision": 0.8,
+        "recall": 0.7272727272727273,
+        "f1": 0.7619047619047619,
+        "support": 11
+      }
+    },
+    "confusion_matrix": [
+      [
+        7,
+        0,
+        0,
+        1,
+        0,
+        2,
+        1
+      ],
+      [
+        2,
+        6,
+        2,
+        0,
+        0,
+        1,
+        0
+      ],
+      [
+        0,
+        4,
+        7,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        3,
+        0,
+        0,
+        0,
+        0,
+        8,
+        0
+      ],
+      [
+        1,
+        1,
+        0,
+        0,
+        8,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        1,
+        1,
+        9,
+        1
+      ],
+      [
+        0,
+        0,
+        0,
+        2,
+        0,
+        1,
+        8
+      ]
+    ]
+  },
+  {
+    "exp_id": "exp4_deep_finetune",
+    "name": "MobileNetV3-Small + Full Backbone Progressive Fine-Tuning",
+    "arch": "mobilenet_v3_small",
+    "model_path": "C:\\Users\\Sania Sagheer\\.gemini\\antigravity\\scratch\\FishLensAI\\ml\\models\\exp4_deep_finetune_mobilenet_v3_small.pth",
+    "best_epoch": 13,
+    "best_val_acc": 0.6286,
+    "best_val_loss": 1.2821,
+    "test_top1_acc": 0.6753,
+    "test_top3_acc": 0.9221,
+    "macro_precision": 0.6854,
+    "macro_recall": 0.6797,
+    "macro_f1": 0.6775,
+    "per_class": {
+      "catla": {
+        "precision": 0.75,
+        "recall": 0.5454545454545454,
+        "f1": 0.631578947368421,
+        "support": 11
+      },
+      "hilsa": {
+        "precision": 0.5833333333333334,
+        "recall": 0.6363636363636364,
+        "f1": 0.6086956521739131,
+        "support": 11
+      },
+      "indian_mackerel": {
+        "precision": 0.6666666666666666,
+        "recall": 0.7272727272727273,
+        "f1": 0.6956521739130435,
+        "support": 11
+      },
+      "mrigal": {
+        "precision": 0.5555555555555556,
+        "recall": 0.45454545454545453,
+        "f1": 0.5,
+        "support": 11
+      },
+      "pomfret": {
+        "precision": 0.9090909090909091,
+        "recall": 1.0,
+        "f1": 0.9523809523809523,
+        "support": 10
+      },
+      "rohu": {
+        "precision": 0.5333333333333333,
+        "recall": 0.6666666666666666,
+        "f1": 0.5925925925925926,
+        "support": 12
+      },
+      "tilapia": {
+        "precision": 0.8,
+        "recall": 0.7272727272727273,
+        "f1": 0.7619047619047619,
+        "support": 11
+      }
+    },
+    "confusion_matrix": [
+      [
+        6,
+        0,
+        1,
+        1,
+        0,
+        2,
+        1
+      ],
+      [
+        1,
+        7,
+        3,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        3,
+        8,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        2,
+        0,
+        5,
+        0,
+        3,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        10,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        2,
+        1,
+        8,
+        1
+      ],
+      [
+        0,
+        0,
+        0,
+        1,
+        0,
+        2,
+        8
+      ]
+    ]
+  },
+  {
+    "exp_id": "exp5_mobilenet_large",
+    "name": "MobileNetV3-Large Architecture Comparison",
+    "arch": "mobilenet_v3_large",
+    "model_path": "C:\\Users\\Sania Sagheer\\.gemini\\antigravity\\scratch\\FishLensAI\\ml\\models\\exp5_mobilenet_large_mobilenet_v3_large.pth",
+    "best_epoch": 29,
+    "best_val_acc": 0.6571,
+    "best_val_loss": 1.182,
+    "test_top1_acc": 0.6883,
+    "test_top3_acc": 0.961,
+    "macro_precision": 0.7243,
+    "macro_recall": 0.6933,
+    "macro_f1": 0.6961,
+    "per_class": {
+      "catla": {
+        "precision": 0.7,
+        "recall": 0.6363636363636364,
+        "f1": 0.6666666666666666,
+        "support": 11
+      },
+      "hilsa": {
+        "precision": 0.6,
+        "recall": 0.8181818181818182,
+        "f1": 0.6923076923076923,
+        "support": 11
+      },
+      "indian_mackerel": {
+        "precision": 0.8,
+        "recall": 0.7272727272727273,
+        "f1": 0.7619047619047619,
+        "support": 11
+      },
+      "mrigal": {
+        "precision": 0.4375,
+        "recall": 0.6363636363636364,
+        "f1": 0.5185185185185185,
+        "support": 11
+      },
+      "pomfret": {
+        "precision": 1.0,
+        "recall": 0.8,
+        "f1": 0.8888888888888888,
+        "support": 10
+      },
+      "rohu": {
+        "precision": 0.7142857142857143,
+        "recall": 0.4166666666666667,
+        "f1": 0.5263157894736842,
+        "support": 12
+      },
+      "tilapia": {
+        "precision": 0.8181818181818182,
+        "recall": 0.8181818181818182,
+        "f1": 0.8181818181818182,
+        "support": 11
+      }
+    },
+    "confusion_matrix": [
+      [
+        7,
+        0,
+        1,
+        2,
+        0,
+        1,
+        0
+      ],
+      [
+        1,
+        9,
+        1,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        2,
+        8,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        2,
+        0,
+        7,
+        0,
+        1,
+        1
+      ],
+      [
+        0,
+        2,
+        0,
+        0,
+        8,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        5,
+        0,
+        5,
+        1
+      ],
+      [
+        0,
+        0,
+        0,
+        2,
+        0,
+        0,
+        9
+      ]
+    ]
+  }
+]

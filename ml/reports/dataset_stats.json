@@ -1,0 +1,192 @@
+{
+  "raw_species": {
+    "dataset_name": "Raw Species Dataset",
+    "directory": "C:\\Users\\Sania Sagheer\\.gemini\\antigravity\\scratch\\FishLensAI\\ml\\data\\raw\\species",
+    "total_files_scanned": 15665,
+    "valid_images": 15664,
+    "corrupted_count": 0,
+    "corrupted_files": [],
+    "zero_byte_count": 0,
+    "mask_files_detected": 0,
+    "non_fish_files_detected": 0,
+    "duplicate_count": 38,
+    "unique_classes_count": 7,
+    "class_distribution": {
+      "catla": 2295,
+      "hilsa": 1101,
+      "indian_mackerel": 1318,
+      "mrigal": 2342,
+      "pomfret": 3120,
+      "rohu": 2951,
+      "tilapia": 2537
+    },
+    "class_imbalance_ratio": 2.83,
+    "recommended_class_weights": {
+      "catla": 0.975,
+      "hilsa": 2.0324,
+      "indian_mackerel": 1.6978,
+      "mrigal": 0.9555,
+      "pomfret": 0.7172,
+      "rohu": 0.7583,
+      "tilapia": 0.882
+    },
+    "resolutions": {
+      "min_width": 214,
+      "max_width": 10807,
+      "avg_width": 837.9,
+      "min_height": 128,
+      "max_height": 10395,
+      "avg_height": 752.9
+    },
+    "color_channels_distribution": {
+      "RGB": 15664
+    },
+    "image_formats": {
+      "JPEG": 15633,
+      "MPO": 30,
+      "TIFF": 1
+    }
+  },
+  "processed_train": {
+    "dataset_name": "Processed Species (TRAIN Set)",
+    "directory": "C:\\Users\\Sania Sagheer\\.gemini\\antigravity\\scratch\\FishLensAI\\ml\\data\\processed\\species\\train",
+    "total_files_scanned": 10951,
+    "valid_images": 10951,
+    "corrupted_count": 0,
+    "corrupted_files": [],
+    "zero_byte_count": 0,
+    "mask_files_detected": 0,
+    "non_fish_files_detected": 0,
+    "duplicate_count": 0,
+    "unique_classes_count": 7,
+    "class_distribution": {
+      "catla": 1619,
+      "hilsa": 762,
+      "indian_mackerel": 959,
+      "mrigal": 1536,
+      "pomfret": 2274,
+      "rohu": 2013,
+      "tilapia": 1788
+    },
+    "class_imbalance_ratio": 2.98,
+    "recommended_class_weights": {
+      "catla": 0.9663,
+      "hilsa": 2.0531,
+      "indian_mackerel": 1.6313,
+      "mrigal": 1.0185,
+      "pomfret": 0.688,
+      "rohu": 0.7772,
+      "tilapia": 0.875
+    },
+    "resolutions": {
+      "min_width": 223,
+      "max_width": 10807,
+      "avg_width": 840.1,
+      "min_height": 128,
+      "max_height": 10395,
+      "avg_height": 753.3
+    },
+    "color_channels_distribution": {
+      "RGB": 10951
+    },
+    "image_formats": {
+      "JPEG": 10929,
+      "MPO": 21,
+      "TIFF": 1
+    }
+  },
+  "processed_val": {
+    "dataset_name": "Processed Species (VAL Set)",
+    "directory": "C:\\Users\\Sania Sagheer\\.gemini\\antigravity\\scratch\\FishLensAI\\ml\\data\\processed\\species\\val",
+    "total_files_scanned": 2341,
+    "valid_images": 2341,
+    "corrupted_count": 0,
+    "corrupted_files": [],
+    "zero_byte_count": 0,
+    "mask_files_detected": 0,
+    "non_fish_files_detected": 0,
+    "duplicate_count": 0,
+    "unique_classes_count": 7,
+    "class_distribution": {
+      "catla": 332,
+      "hilsa": 186,
+      "indian_mackerel": 189,
+      "mrigal": 367,
+      "pomfret": 463,
+      "rohu": 453,
+      "tilapia": 351
+    },
+    "class_imbalance_ratio": 2.49,
+    "recommended_class_weights": {
+      "catla": 1.0073,
+      "hilsa": 1.798,
+      "indian_mackerel": 1.7695,
+      "mrigal": 0.9112,
+      "pomfret": 0.7223,
+      "rohu": 0.7383,
+      "tilapia": 0.9528
+    },
+    "resolutions": {
+      "min_width": 214,
+      "max_width": 5184,
+      "avg_width": 815.6,
+      "min_height": 155,
+      "max_height": 4624,
+      "avg_height": 739.4
+    },
+    "color_channels_distribution": {
+      "RGB": 2341
+    },
+    "image_formats": {
+      "JPEG": 2336,
+      "MPO": 5
+    }
+  },
+  "processed_test": {
+    "dataset_name": "Processed Species (TEST Set)",
+    "directory": "C:\\Users\\Sania Sagheer\\.gemini\\antigravity\\scratch\\FishLensAI\\ml\\data\\processed\\species\\test",
+    "total_files_scanned": 2334,
+    "valid_images": 2334,
+    "corrupted_count": 0,
+    "corrupted_files": [],
+    "zero_byte_count": 0,
+    "mask_files_detected": 0,
+    "non_fish_files_detected": 0,
+    "duplicate_count": 0,
+    "unique_classes_count": 7,
+    "class_distribution": {
+      "catla": 341,
+      "hilsa": 153,
+      "indian_mackerel": 170,
+      "mrigal": 408,
+      "pomfret": 382,
+      "rohu": 482,
+      "tilapia": 398
+    },
+    "class_imbalance_ratio": 3.15,
+    "recommended_class_weights": {
+      "catla": 0.9778,
+      "hilsa": 2.1793,
+      "indian_mackerel": 1.9613,
+      "mrigal": 0.8172,
+      "pomfret": 0.8728,
+      "rohu": 0.6918,
+      "tilapia": 0.8378
+    },
+    "resolutions": {
+      "min_width": 269,
+      "max_width": 5380,
+      "avg_width": 809.4,
+      "min_height": 204,
+      "max_height": 4608,
+      "avg_height": 744.9
+    },
+    "color_channels_distribution": {
+      "RGB": 2334
+    },
+    "image_formats": {
+      "JPEG": 2330,
+      "MPO": 4
+    }
+  }
+}
