@@ -193,6 +193,85 @@ export default function AnalysisDetailsScreen() {
           </View>
         </View>
 
+        {/* Section: Neural Model Class Distributions */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <MaterialCommunityIcons name="chart-bell-curve" size={18} color={Colors.primary} style={styles.headerIcon} />
+            <Text style={styles.cardTitle}>Neural Probability Distributions</Text>
+          </View>
+
+          {/* Model 1: Species Probabilities (7 Classes) */}
+          <Text style={styles.subCardTitle}>Model 1: Species Softmax (7 Classes)</Text>
+          {scan.species.probabilities ? (
+            Object.entries(scan.species.probabilities).map(([className, prob]) => {
+              const pct = Math.round((prob as number) * 100);
+              const isTop = className === scan.species.id;
+              return (
+                <View key={className} style={styles.probRow}>
+                  <View style={styles.probLabelRow}>
+                    <Text style={[styles.probName, isTop && styles.probNameTop]}>
+                      {className.replace('_', ' ').toUpperCase()} {isTop ? '★' : ''}
+                    </Text>
+                    <Text style={[styles.probPct, isTop && styles.probPctTop]}>{pct}%</Text>
+                  </View>
+                  <View style={styles.probBarTrack}>
+                    <View
+                      style={[
+                        styles.probBarFill,
+                        {
+                          width: `${Math.max(pct, 2)}%`,
+                          backgroundColor: isTop ? Colors.primary : '#B0BEC5',
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              );
+            })
+          ) : (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Confidence</Text>
+              <Text style={styles.detailValue}>{Math.round(scan.confidence * 100)}%</Text>
+            </View>
+          )}
+
+          {/* Model 2: Freshness Probabilities */}
+          <Text style={[styles.subCardTitle, { marginTop: 16 }]}>Model 2: Freshness Softmax</Text>
+          {scan.freshness.probabilities ? (
+            Object.entries(scan.freshness.probabilities).map(([statusKey, prob]) => {
+              const pct = Math.round((prob as number) * 100);
+              const isSelected = statusKey.toLowerCase() === scan.freshness.status.toLowerCase();
+              return (
+                <View key={statusKey} style={styles.probRow}>
+                  <View style={styles.probLabelRow}>
+                    <Text style={[styles.probName, isSelected && styles.probNameTop]}>
+                      {statusKey.toUpperCase()} {isSelected ? '●' : ''}
+                    </Text>
+                    <Text style={[styles.probPct, isSelected && styles.probPctTop]}>{pct}%</Text>
+                  </View>
+                  <View style={styles.probBarTrack}>
+                    <View
+                      style={[
+                        styles.probBarFill,
+                        {
+                          width: `${Math.max(pct, 2)}%`,
+                          backgroundColor:
+                            statusKey === 'fresh' ? '#2E7D32' : statusKey === 'moderate' ? '#F57C00' : '#C62828',
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              );
+            })
+          ) : (
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Score</Text>
+              <Text style={styles.detailValue}>{scan.freshness.score}/100</Text>
+            </View>
+          )}
+        </View>
+
         {/* Section 4: Culinary & Storage Advice */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
@@ -345,6 +424,48 @@ const styles = StyleSheet.create({
     color: '#1D2A24',
     flex: 1.2,
     textAlign: 'right',
+  },
+  subCardTitle: {
+    ...Typography.bodyBold,
+    fontSize: 13,
+    color: '#34495E',
+    marginBottom: 8,
+  },
+  probRow: {
+    marginBottom: 8,
+  },
+  probLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 3,
+  },
+  probName: {
+    fontSize: 11,
+    color: '#556960',
+    fontWeight: '500',
+  },
+  probNameTop: {
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  probPct: {
+    fontSize: 11,
+    color: '#7F8C8D',
+    fontWeight: '600',
+  },
+  probPctTop: {
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  probBarTrack: {
+    height: 6,
+    backgroundColor: '#ECEFF1',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  probBarFill: {
+    height: '100%',
+    borderRadius: 3,
   },
   divider: {
     height: 1,

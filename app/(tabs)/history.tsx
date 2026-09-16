@@ -33,6 +33,10 @@ export default function HistoryScreen() {
     setHistory(data);
   };
 
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadHistory();

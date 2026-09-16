@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
-import { FishAnalysisResult, FishSpecies } from '../ai/types';
+import { FishAnalysisResult, FishSpecies, FreshnessStatus } from '../ai/types';
+import { SPECIES_DATABASE } from '../database/speciesData';
 
 // Default API URL (localhost on web, 10.0.2.2 on Android emulator, or LAN IP)
 const getApiBaseUrl = () => {
@@ -115,52 +116,66 @@ class ApiClient {
       });
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
-        return json.data.map((row: any): FishAnalysisResult => ({
-          id: row.id,
-          timestamp: row.created_at,
-          formattedDate: new Date(row.created_at).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-          }),
-          imageUri: row.image_uri,
-          species: {
-            id: row.species_id || 'unknown',
+        return json.data.map((row: any): FishAnalysisResult => {
+          const spId = (row.species_id || '').toLowerCase();
+          const spMeta = SPECIES_DATABASE[spId] || {
+            id: spId || 'unknown',
             commonName: row.species_name,
             scientificName: row.species_scientific_name || '',
-            family: 'N/A',
-            diet: 'N/A',
-            nativeRegion: 'N/A',
-            commercialValue: 'N/A',
-            culinaryNotes: 'N/A',
+            family: 'Cyprinidae',
+            diet: 'Aquatic feeder',
+            nativeRegion: 'South Asian waters',
+            commercialValue: 'Commercial food fish',
+            culinaryNotes: '',
             optimalTempC: '0°C to 4°C',
             shelfLifeDays: 4,
             aCoeff: 0.0125,
             bCoeff: 3.02,
-            defaultLengthCm: row.length_cm || 30,
+            defaultLengthCm: Number(row.length_cm) || 30,
             sampleImageUri: row.image_uri,
-          },
-          confidence: Number(row.species_confidence) || 0,
-          freshness: {
-            status: row.freshness_status,
-            score: Number(row.freshness_score) || 0,
-          },
-          morphometrics: {
-            lengthCm: Number(row.length_cm) || 0,
-            widthCm: Number(row.width_cm) || 0,
-            estimatedWeightKg: Number(row.estimated_weight_kg) || 0,
-            estimatedVolumeCm3: Number(row.estimated_volume_cm3) || 0,
-            referenceScaling: 'Reference metric calibrated',
-            allometricFormula: row.allometric_formula || 'W = a × L^b',
-          },
-          boundingBox: row.bounding_box || { x: 0, y: 0, width: 1, height: 1 },
-          isMockInference: false,
-          modelInfo: row.model_info || {
-            engineName: 'FishLensAI Backend',
-            modelArchitecture: 'MobileNetV3',
-            latencyMs: 0,
-          },
-        }));
+          };
+
+          const rawStatus = (row.freshness_status || 'Moderate').toLowerCase();
+          const normStatus: FreshnessStatus =
+            rawStatus === 'fresh' ? 'Fresh' : rawStatus === 'spoiled' ? 'Spoiled' : 'Moderate';
+
+          return {
+            id: row.id,
+            timestamp: row.created_at,
+            formattedDate: new Date(row.created_at).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            }),
+            imageUri: row.image_uri,
+            species: {
+              ...spMeta,
+              commonName: row.species_name || spMeta.commonName,
+              scientificName: row.species_scientific_name || spMeta.scientificName,
+            },
+            confidence: Number(row.species_confidence) || 0,
+            freshness: {
+              status: normStatus,
+              score: Number(row.freshness_score) || 0,
+            },
+            morphometrics: {
+              lengthCm: Number(row.length_cm) || 0,
+              widthCm: Number(row.width_cm) || 0,
+              estimatedWeightKg: Number(row.estimated_weight_kg) || 0,
+              estimatedVolumeCm3: Number(row.estimated_volume_cm3) || 0,
+              referenceScaling: 'Reference metric calibrated',
+              allometricFormula: row.allometric_formula || 'W = a × L^b',
+              validationStatus: 'Unvalidated / Experimental Computer Vision Prior',
+            },
+            boundingBox: row.bounding_box || { x: 0, y: 0, width: 1, height: 1 },
+            isMockInference: false,
+            modelInfo: row.model_info || {
+              engineName: 'FishLensAI Backend',
+              modelArchitecture: 'MobileNetV3',
+              latencyMs: 0,
+            },
+          };
+        });
       }
       return [];
     } catch (err) {
@@ -197,6 +212,104 @@ class ApiClient {
       console.warn('[ApiClient] Failed to clear history on backend:', err);
       return false;
     }
+  }
+
+  // 7. Analyze Image via Backend ML Pipeline (TFLite Model 1 + Model 2 + Model 3)
+  public async analyzeImage(imageUri: string): Promise<FishAnalysisResult> {
+    let payloadUri = imageUri;
+
+    // Convert blob URL to base64 if running on web
+    if (imageUri.startsWith('blob:')) {
+      try {
+        const resp = await fetch(imageUri);
+        const blob = await resp.blob();
+        payloadUri = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (err) {
+        console.warn('[ApiClient] Failed to convert blob to base64, passing original:', err);
+      }
+    }
+
+    const res = await fetch(`${API_BASE_URL}/scans/analyze`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ image_uri: payloadUri }),
+    });
+
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.message || `Analysis failed with HTTP ${res.status}`);
+    }
+
+    const json = await res.json();
+    if (!json.success || !json.data) {
+      throw new Error(json.message || 'Analysis did not return valid result data');
+    }
+
+    const raw = json.data;
+    const speciesId = (raw.species?.id || 'unknown').toLowerCase();
+    const speciesMeta = SPECIES_DATABASE[speciesId] || {
+      id: speciesId,
+      commonName: raw.species?.commonName || speciesId,
+      scientificName: raw.species?.scientificName || '',
+      family: 'Unknown Family',
+      diet: 'Aquatic feeder',
+      nativeRegion: 'South Asian waters',
+      commercialValue: 'Commercial food fish',
+      culinaryNotes: 'Rich flavor, best prepared according to traditional regional methods.',
+      optimalTempC: '0°C to 4°C',
+      shelfLifeDays: 3,
+      aCoeff: 0.0125,
+      bCoeff: 3.02,
+      defaultLengthCm: raw.morphometrics?.lengthCm || 30,
+      sampleImageUri: imageUri,
+    };
+
+    const result: FishAnalysisResult = {
+      id: raw.id || `scan-${Date.now()}`,
+      timestamp: raw.timestamp || new Date().toISOString(),
+      formattedDate: new Date(raw.timestamp || Date.now()).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }),
+      imageUri: imageUri,
+      species: {
+        ...speciesMeta,
+        commonName: raw.species?.commonName || speciesMeta.commonName,
+        scientificName: raw.species?.scientificName || speciesMeta.scientificName,
+        probabilities: raw.species?.probabilities,
+      },
+      confidence: Number(raw.species?.confidence) || 0,
+      freshness: {
+        status: raw.freshness?.status || 'Moderate',
+        score: Number(raw.freshness?.score) || 50,
+        confidence: Number(raw.freshness?.confidence) || 0,
+        probabilities: raw.freshness?.probabilities,
+      },
+      morphometrics: {
+        lengthCm: Number(raw.morphometrics?.lengthCm) || 0,
+        widthCm: Number(raw.morphometrics?.widthCm) || 0,
+        estimatedWeightKg: Number(raw.morphometrics?.estimatedWeightKg) || 0,
+        estimatedVolumeCm3: Number(raw.morphometrics?.estimatedVolumeCm3) || 0,
+        referenceScaling: raw.morphometrics?.referenceScaling || 'coin_calibration_inr_5',
+        allometricFormula: raw.morphometrics?.allometricFormula || 'W = a × L^b',
+        validationStatus: raw.morphometrics?.validationStatus || 'Unvalidated / Experimental Computer Vision Prior',
+      },
+      boundingBox: raw.boundingBox || { x: 0, y: 0, width: 1, height: 1 },
+      isMockInference: false,
+      modelInfo: {
+        engineName: 'FishLensAI TFLite Engine',
+        modelArchitecture: 'MobileNetV3 (Species & Freshness) + CV Morphometrics',
+        latencyMs: 0,
+      },
+    };
+
+    return result;
   }
 }
 

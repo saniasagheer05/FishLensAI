@@ -174,26 +174,63 @@ export default function ResultsScreen() {
         </View>
 
         {/* Morphometrics Cards */}
-        <Text style={styles.sectionHeader}>Morphometrics & Biomass</Text>
-        <View style={styles.metricsRow}>
-          <MetricCard
-            label="Length"
-            value={`${scan.morphometrics.lengthCm} cm`}
-            subValue="± 0.5 cm"
-            icon={<Feather name="maximize-2" size={16} color={Colors.primary} />}
-          />
-          <MetricCard
-            label="Est. Weight"
-            value={`~${scan.morphometrics.estimatedWeightKg} kg`}
-            subValue={scan.morphometrics.allometricFormula}
-            icon={<MaterialCommunityIcons name="scale-bathroom" size={16} color={Colors.primary} />}
-          />
-          <MetricCard
-            label="Est. Volume"
-            value={`~${scan.morphometrics.estimatedVolumeCm3} cm³`}
-            subValue="Calculated"
-            icon={<Feather name="box" size={16} color={Colors.primary} />}
-          />
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeader}>Morphometrics & Biomass</Text>
+          <View style={styles.experimentalBadge}>
+            <Feather name="info" size={11} color="#856404" style={{ marginRight: 4 }} />
+            <Text style={styles.experimentalBadgeText}>Experimental Prior</Text>
+          </View>
+        </View>
+
+        <View style={styles.metricsGrid}>
+          <View style={styles.metricsRow}>
+            <MetricCard
+              label="Length"
+              value={`${scan.morphometrics.lengthCm} cm`}
+              subValue="Estimated"
+              icon={<Feather name="maximize-2" size={16} color={Colors.primary} />}
+            />
+            <MetricCard
+              label="Body Width"
+              value={`${scan.morphometrics.widthCm} cm`}
+              subValue="Aspect Ratio"
+              icon={<Feather name="minimize-2" size={16} color={Colors.primary} />}
+            />
+          </View>
+          <View style={styles.metricsRow}>
+            <MetricCard
+              label="Est. Weight"
+              value={`~${scan.morphometrics.estimatedWeightKg} kg`}
+              subValue={scan.morphometrics.allometricFormula}
+              icon={<MaterialCommunityIcons name="scale-bathroom" size={16} color={Colors.primary} />}
+            />
+            <MetricCard
+              label="Est. Volume"
+              value={`~${scan.morphometrics.estimatedVolumeCm3} cm³`}
+              subValue="Calculated"
+              icon={<Feather name="box" size={16} color={Colors.primary} />}
+            />
+          </View>
+        </View>
+
+        {/* Allometric Formula & Reference Scaling */}
+        <View style={styles.formulaCard}>
+          <View style={styles.formulaRow}>
+            <Text style={styles.formulaLabel}>Allometric Model:</Text>
+            <Text style={styles.formulaValue}>{scan.morphometrics.allometricFormula}</Text>
+          </View>
+          <View style={[styles.formulaRow, { marginTop: 4 }]}>
+            <Text style={styles.formulaLabel}>Reference Scaling:</Text>
+            <Text style={styles.formulaScaling}>{scan.morphometrics.referenceScaling}</Text>
+          </View>
+        </View>
+
+        {/* Model 3 Unvalidated Disclaimer */}
+        <View style={styles.disclaimerBox}>
+          <Feather name="alert-circle" size={16} color="#856404" style={{ marginRight: 8, marginTop: 1 }} />
+          <Text style={styles.disclaimerText}>
+            <Text style={{ fontWeight: '700' }}>Unvalidated CV Prior:</Text> Single-camera 2D biomass and volume estimates are experimental priors based on geometric contours and allometric growth curves, not a certified scale reading.
+          </Text>
         </View>
 
         {/* Action Buttons */}
@@ -352,16 +389,83 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 4,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
   sectionHeader: {
     ...Typography.bodyBold,
     fontSize: 15,
     color: '#1D2A24',
-    marginBottom: 10,
+  },
+  experimentalBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF8E1',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFE082',
+  },
+  experimentalBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#856404',
+  },
+  metricsGrid: {
+    gap: 8,
+    marginBottom: 12,
   },
   metricsRow: {
     flexDirection: 'row',
     gap: 8,
+  },
+  formulaCard: {
+    backgroundColor: '#FAF8F5',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#EDE7DC',
+    marginBottom: 12,
+  },
+  formulaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  formulaLabel: {
+    fontSize: 12,
+    color: '#65776E',
+  },
+  formulaValue: {
+    fontSize: 12,
+    fontFamily: 'monospace',
+    fontWeight: '700',
+    color: Colors.primaryDark,
+  },
+  formulaScaling: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334D41',
+  },
+  disclaimerBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFFDE7',
+    borderWidth: 1,
+    borderColor: '#FFF59D',
+    borderRadius: 12,
+    padding: 12,
     marginBottom: 20,
+  },
+  disclaimerText: {
+    flex: 1,
+    fontSize: 11,
+    color: '#795548',
+    lineHeight: 16,
   },
   actionsBlock: {
     gap: 12,

@@ -26,6 +26,7 @@ export interface Morphometrics {
   estimatedVolumeCm3: number;
   referenceScaling: string;
   allometricFormula: string;
+  validationStatus?: string;
 }
 
 export interface FishSpecies {
@@ -43,6 +44,7 @@ export interface FishSpecies {
   bCoeff: number;
   defaultLengthCm: number;
   sampleImageUri: string;
+  probabilities?: Record<string, number>;
 }
 
 export interface BoundingBox {
@@ -62,6 +64,8 @@ export interface FishAnalysisResult {
   freshness: {
     status: FreshnessStatus;
     score: number; // 0 - 100
+    confidence?: number;
+    probabilities?: Record<string, number>;
     organoleptic?: OrganolepticMetrics;
   };
   morphometrics: Morphometrics;

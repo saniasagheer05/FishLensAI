@@ -1,0 +1,57 @@
+[
+  {
+    "test_case": "1. Catla Specimen",
+    "image_path": "ml/data/raw/species/catla/Katla1002.jpg",
+    "pytorch_species": "catla (100.0%)",
+    "pytorch_freshness": "moderate (84.4%)",
+    "tflite_species": "Catla (100.0%)",
+    "tflite_freshness": "Moderate (Score: 68.2)",
+    "morphometrics": "L:12.0cm, W:5.4cm, Wt:~0.02kg",
+    "api_status": "Success (200)",
+    "match": true
+  },
+  {
+    "test_case": "2. Mrigal Specimen",
+    "image_path": "ml/data/raw/species/mrigal/Mrigal (100).JPG",
+    "pytorch_species": "mrigal (100.0%)",
+    "pytorch_freshness": "fresh (99.5%)",
+    "tflite_species": "Mrigal (100.0%)",
+    "tflite_freshness": "Fresh (Score: 97.8)",
+    "morphometrics": "L:27.7cm, W:6.7cm, Wt:~0.3kg",
+    "api_status": "Success (200)",
+    "match": true
+  },
+  {
+    "test_case": "3. Pomfret Specimen",
+    "image_path": "ml/data/raw/species/pomfret/Black Pomfret001.jpg",
+    "pytorch_species": "pomfret (99.9%)",
+    "pytorch_freshness": "fresh (84.5%)",
+    "tflite_species": "Pomfret (99.9%)",
+    "tflite_freshness": "Fresh (Score: 92.9)",
+    "morphometrics": "L:16.5cm, W:7.425cm, Wt:~0.08kg",
+    "api_status": "Success (200)",
+    "match": true
+  },
+  {
+    "test_case": "4. Fresh Fish (Day 1)",
+    "image_path": "ml/data/raw/freshness/fresh/dafif_day1_Mackerel_1000212414.jpg",
+    "pytorch_species": "catla (45.0%)",
+    "pytorch_freshness": "fresh (100.0%)",
+    "tflite_species": "Catla (45.0%)",
+    "tflite_freshness": "Fresh (Score: 98.0)",
+    "morphometrics": "L:86.7cm, W:23.8cm, Wt:~8.46kg",
+    "api_status": "Success (200)",
+    "match": true
+  },
+  {
+    "test_case": "5. Spoiled Fish (Day 10)",
+    "image_path": "ml/data/raw/freshness/spoiled/dafif_day10_Mackerel_IMG_20240128_094310.jpg",
+    "pytorch_species": "catla (97.7%)",
+    "pytorch_freshness": "spoiled (100.0%)",
+    "tflite_species": "Catla (97.7%)",
+    "tflite_freshness": "Spoiled (Score: 25.0)",
+    "morphometrics": "L:45.2cm, W:11.0cm, Wt:~1.22kg",
+    "api_status": "Success (200)",
+    "match": true
+  }
+]

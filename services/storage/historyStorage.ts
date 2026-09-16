@@ -153,7 +153,10 @@ export class HistoryStorageService {
       // 2. Fallback to local device storage
       const stored = await AsyncStorage.getItem(HISTORY_STORAGE_KEY);
       if (stored) {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
       }
 
       // 3. Initialize with seed data if empty
@@ -172,13 +175,14 @@ export class HistoryStorageService {
 
   static async saveScan(scan: FishAnalysisResult): Promise<void> {
     try {
-      // Save locally
-      const history = await this.getHistory();
-      const updated = [scan, ...history.filter((item) => item.id !== scan.id)];
-      await AsyncStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
-
-      // Sync to backend REST API
+      // 1. Sync to backend REST API (PostgreSQL)
       await apiClient.saveScan(scan);
+
+      // 2. Update local cache immediately
+      const stored = await AsyncStorage.getItem(HISTORY_STORAGE_KEY);
+      let localHistory: FishAnalysisResult[] = stored ? JSON.parse(stored) : [];
+      const updated = [scan, ...localHistory.filter((item) => item.id !== scan.id)];
+      await AsyncStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
     } catch (e) {
       console.error('Error saving scan:', e);
     }

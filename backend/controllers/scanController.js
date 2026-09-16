@@ -1,4 +1,120 @@
 const { query } = require('../config/db');
+const { execFile } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+const PROJECT_ROOT = path.resolve(__dirname, '../../');
+const PYTHON_PATH = path.join(PROJECT_ROOT, 'tflite_env/Scripts/python.exe');
+const PREDICT_SCRIPT = path.join(PROJECT_ROOT, 'ml/src/predict_unified.py');
+
+exports.analyzeScan = async (req, res, next) => {
+  let tempFilePath = null;
+  try {
+    const { image_uri, image_data } = req.body;
+    const rawImage = image_data || image_uri;
+
+    if (!rawImage) {
+      return res.status(400).json({
+        success: false,
+        message: 'image_uri or image_data is required for analysis.',
+      });
+    }
+
+    let inputPathForPython = rawImage;
+
+    // Handle base64 / data URI
+    if (rawImage.startsWith('data:') || (!fs.existsSync(rawImage) && rawImage.length > 300)) {
+      let b64 = rawImage;
+      if (b64.includes(',')) {
+        b64 = b64.split(',')[1];
+      }
+      const buffer = Buffer.from(b64, 'base64');
+      tempFilePath = path.join(os.tmpdir(), `fishlens_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.jpg`);
+      fs.writeFileSync(tempFilePath, buffer);
+      inputPathForPython = tempFilePath;
+    } else if (rawImage.startsWith('http://') || rawImage.startsWith('https://')) {
+      const resp = await fetch(rawImage);
+      const arrayBuf = await resp.arrayBuffer();
+      tempFilePath = path.join(os.tmpdir(), `fishlens_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.jpg`);
+      fs.writeFileSync(tempFilePath, Buffer.from(arrayBuf));
+      inputPathForPython = tempFilePath;
+    } else {
+      if (!path.isAbsolute(inputPathForPython)) {
+        const candidate = path.resolve(PROJECT_ROOT, inputPathForPython);
+        if (fs.existsSync(candidate)) {
+          inputPathForPython = candidate;
+        }
+      }
+      if (!fs.existsSync(inputPathForPython)) {
+        return res.status(400).json({
+          success: false,
+          message: `Image file does not exist: ${inputPathForPython}`,
+        });
+      }
+    }
+
+    // Execute predict_unified.py via Python executable
+    execFile(PYTHON_PATH, [PREDICT_SCRIPT, inputPathForPython], { maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+      // Clean up temp file
+      if (tempFilePath && fs.existsSync(tempFilePath)) {
+        try { fs.unlinkSync(tempFilePath); } catch (e) {}
+      }
+
+      if (error) {
+        console.error('[analyzeScan Error]:', error, stderr);
+        return res.status(500).json({
+          success: false,
+          message: `Inference failed: ${error.message}`,
+          details: stderr,
+        });
+      }
+
+      try {
+        // Find last non-empty line of stdout which contains the JSON output
+        const lines = stdout.trim().split('\n').map(l => l.trim()).filter(Boolean);
+        const jsonLine = lines.reverse().find(l => l.startsWith('{') && l.endsWith('}'));
+        if (!jsonLine) {
+          throw new Error(`Invalid JSON output from model runner: ${stdout}`);
+        }
+
+        const modelResult = JSON.parse(jsonLine);
+        if (!modelResult.success) {
+          return res.status(500).json({
+            success: false,
+            message: modelResult.error || 'Model inference failed',
+          });
+        }
+
+        const scanId = `scan-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+        return res.json({
+          success: true,
+          data: {
+            id: scanId,
+            imageUri: image_uri || rawImage,
+            species: modelResult.species,
+            freshness: modelResult.freshness,
+            morphometrics: modelResult.morphometrics,
+            boundingBox: modelResult.boundingBox,
+            timestamp: new Date().toISOString(),
+          },
+        });
+      } catch (parseErr) {
+        console.error('[analyzeScan parse error]:', parseErr, stdout);
+        return res.status(500).json({
+          success: false,
+          message: `Failed to parse inference output: ${parseErr.message}`,
+          rawOutput: stdout,
+        });
+      }
+    });
+  } catch (err) {
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      try { fs.unlinkSync(tempFilePath); } catch (e) {}
+    }
+    next(err);
+  }
+};
 
 exports.createScan = async (req, res, next) => {
   try {
@@ -33,6 +149,11 @@ exports.createScan = async (req, res, next) => {
     const userId = req.user ? req.user.id : null;
     const createdAt = timestamp ? new Date(timestamp) : new Date();
 
+    const validSpecies = ['rohu', 'catla', 'tilapia', 'hilsa', 'mrigal', 'pomfret', 'indian_mackerel'];
+    const cleanSpeciesId = (species_id && validSpecies.includes(species_id.toLowerCase()))
+      ? species_id.toLowerCase()
+      : null;
+
     const insertSql = `
       INSERT INTO scan_results (
         id, user_id, species_id, species_name, species_scientific_name,
@@ -42,13 +163,30 @@ exports.createScan = async (req, res, next) => {
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
       )
+      ON CONFLICT (id) DO UPDATE SET
+        species_id = EXCLUDED.species_id,
+        species_name = EXCLUDED.species_name,
+        species_scientific_name = EXCLUDED.species_scientific_name,
+        species_confidence = EXCLUDED.species_confidence,
+        freshness_status = EXCLUDED.freshness_status,
+        freshness_score = EXCLUDED.freshness_score,
+        freshness_confidence = EXCLUDED.freshness_confidence,
+        length_cm = EXCLUDED.length_cm,
+        width_cm = EXCLUDED.width_cm,
+        estimated_weight_kg = EXCLUDED.estimated_weight_kg,
+        estimated_volume_cm3 = EXCLUDED.estimated_volume_cm3,
+        allometric_formula = EXCLUDED.allometric_formula,
+        image_uri = EXCLUDED.image_uri,
+        bounding_box = EXCLUDED.bounding_box,
+        model_info = EXCLUDED.model_info,
+        created_at = EXCLUDED.created_at
       RETURNING *
     `;
 
     const values = [
       scanId,
       userId,
-      species_id || null,
+      cleanSpeciesId,
       species_name,
       species_scientific_name || null,
       species_confidence !== undefined ? Number(species_confidence) : 0,
