@@ -119,45 +119,58 @@ const initialSpecies = [
 ];
 
 async function initializeDatabase() {
-  const targetDb = process.env.DB_NAME || 'fishlensai';
-  console.log(`[DB Init] Connecting to PostgreSQL at ${process.env.DB_HOST}:${process.env.DB_PORT}...`);
+  console.log('[DB Init] Initializing database...');
 
-  // Step 1: Ensure database exists by connecting to default postgres database
-  const adminPool = new Pool({
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432', 10),
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
-    database: 'postgres',
-  });
+  let appPool;
 
-  try {
-    const checkRes = await adminPool.query(
-      `SELECT 1 FROM pg_database WHERE datname = $1`,
-      [targetDb]
-    );
+  if (process.env.DATABASE_URL) {
+    console.log('[DB Init] Using DATABASE_URL connection string...');
+    appPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false },
+      connectionTimeoutMillis: 10000,
+    });
+  } else {
+    const targetDb = process.env.DB_NAME || 'fishlensai';
+    console.log(`[DB Init] Connecting to PostgreSQL at ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || '5432'}...`);
 
-    if (checkRes.rowCount === 0) {
-      console.log(`[DB Init] Database "${targetDb}" does not exist. Creating...`);
-      await adminPool.query(`CREATE DATABASE "${targetDb}"`);
-      console.log(`[DB Init] Database "${targetDb}" created successfully.`);
-    } else {
-      console.log(`[DB Init] Database "${targetDb}" already exists.`);
+    // Step 1: Ensure database exists by connecting to default postgres database
+    const adminPool = new Pool({
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432', 10),
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || 'postgres',
+      database: 'postgres',
+    });
+
+    try {
+      const checkRes = await adminPool.query(
+        `SELECT 1 FROM pg_database WHERE datname = $1`,
+        [targetDb]
+      );
+
+      if (checkRes.rowCount === 0) {
+        console.log(`[DB Init] Database "${targetDb}" does not exist. Creating...`);
+        await adminPool.query(`CREATE DATABASE "${targetDb}"`);
+        console.log(`[DB Init] Database "${targetDb}" created successfully.`);
+      } else {
+        console.log(`[DB Init] Database "${targetDb}" already exists.`);
+      }
+    } catch (err) {
+      console.warn(`[DB Init] Notice when checking/creating database: ${err.message}`);
+    } finally {
+      await adminPool.end();
     }
-  } catch (err) {
-    console.warn(`[DB Init] Notice when checking/creating database: ${err.message}`);
-  } finally {
-    await adminPool.end();
-  }
 
-  // Step 2: Connect to target database and run schema
-  const appPool = new Pool({
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432', 10),
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
-    database: targetDb,
-  });
+    // Step 2: Connect to target database
+    appPool = new Pool({
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432', 10),
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || 'postgres',
+      database: targetDb,
+    });
+  }
 
   try {
     const schemaPath = path.join(__dirname, 'schema.sql');

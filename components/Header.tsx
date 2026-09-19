@@ -1,32 +1,25 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { Feather } from '@expo/vector-icons';
 import Colors from '../constants/Colors';
 import Typography from '../constants/Typography';
 
 interface HeaderProps {
   title?: string;
-  onMenuPress?: () => void;
   onAvatarPress?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   title = 'FishLens AI',
-  onMenuPress,
   onAvatarPress,
 }) => {
   return (
     <View style={styles.container}>
-      <TouchableOpacity 
-        style={styles.iconButton} 
-        onPress={onMenuPress}
-        accessibilityLabel="Menu"
-        activeOpacity={0.7}
-      >
-        <Feather name="menu" size={22} color={Colors.text} />
-      </TouchableOpacity>
-
       <View style={styles.titleContainer}>
+        <Image
+          source={require('../assets/images/logo.png')}
+          style={styles.logoBadge}
+          resizeMode="contain"
+        />
         <Text style={styles.titleText}>{title}</Text>
       </View>
 
@@ -61,6 +54,12 @@ const styles = StyleSheet.create({
   titleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+  },
+  logoBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
   },
   titleText: {
     ...Typography.brandTitle,

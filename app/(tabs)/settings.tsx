@@ -8,16 +8,47 @@ import {
   Switch,
   Alert,
 } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Header from '../../components/Header';
 import Colors from '../../constants/Colors';
 import Typography from '../../constants/Typography';
 import { HistoryStorageService } from '../../services/storage/historyStorage';
+import { AuthStorage } from '../../services/auth/authStorage';
+import apiClient from '../../services/api/apiClient';
 
 export default function SettingsScreen() {
   const [isMetric, setIsMetric] = useState(true);
   const [showLiveReticle, setShowLiveReticle] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  const checkUserStatus = async () => {
+    const user = await AuthStorage.getUser();
+    setCurrentUser(user);
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      checkUserStatus();
+    }, [])
+  );
+
+  const handleLogout = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          await AuthStorage.clearAuth();
+          apiClient.setToken(null);
+          setCurrentUser(null);
+          router.replace('/login');
+        },
+      },
+    ]);
+  };
 
   const handleClearHistory = () => {
     Alert.alert(
@@ -53,6 +84,60 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.screenTitle}>Settings</Text>
+
+        {/* Section 0: Account Management */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionHeader}>Account</Text>
+
+          {currentUser ? (
+            <View>
+              <View style={styles.settingRow}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.avatarCircle}>
+                    <Feather name="user" size={20} color={Colors.primary} />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>{currentUser.username || 'User'}</Text>
+                    <Text style={styles.settingSubtitle}>{currentUser.email || 'Authenticated User'}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.settingRow, styles.borderTop]}
+                onPress={handleLogout}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingInfo}>
+                  <Feather name="log-out" size={18} color="#D14343" style={styles.settingIcon} />
+                  <View>
+                    <Text style={[styles.settingTitle, { color: '#D14343' }]}>Sign Out</Text>
+                    <Text style={styles.settingSubtitle}>Log out of your FishLensAI account</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <View style={styles.avatarCircle}>
+                  <Feather name="user-x" size={20} color="#8A9E96" />
+                </View>
+                <View>
+                  <Text style={styles.settingTitle}>Guest Mode</Text>
+                  <Text style={styles.settingSubtitle}>Sign in to sync your scans across devices</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.unitToggle}
+                onPress={() => router.push('/login')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.unitToggleText}>Sign In</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
 
         {/* Section 1: Measurement Units */}
         <View style={styles.sectionCard}>
@@ -227,6 +312,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+  },
+  avatarCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E5F2EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
   settingIcon: {
     marginRight: 12,

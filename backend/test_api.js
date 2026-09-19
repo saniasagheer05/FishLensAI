@@ -47,8 +47,8 @@ async function runTests() {
     authToken = data.data.token;
   });
 
-  // 3. Login
-  await test('POST /api/auth/login - User login', async () => {
+  // 3. Login with email
+  await test('POST /api/auth/login - User login with email', async () => {
     const res = await fetch(`${BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -56,6 +56,26 @@ async function runTests() {
     });
     const data = await res.json();
     if (!data.success || !data.data.token) throw new Error(data.message || 'Login failed');
+  });
+
+  // 3b. Login with username
+  await test('POST /api/auth/login - User login with username', async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: testUser.username, password: testUser.password }),
+    });
+    const data = await res.json();
+    if (!data.success || !data.data.token) throw new Error(data.message || 'Login with username failed');
+  });
+
+  // 3c. Get user profile
+  await test('GET /api/auth/profile - Fetch authenticated user profile', async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/profile`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    const data = await res.json();
+    if (!data.success || !data.data.id) throw new Error(data.message || 'Get profile failed');
   });
 
   // 4. Get Species List

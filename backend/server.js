@@ -99,6 +99,12 @@ if (process.env.NODE_ENV !== 'test') {
     const dbCheck = await testConnection();
     if (dbCheck.connected) {
       console.log(`[PostgreSQL] Connected to "${dbCheck.database}" at ${dbCheck.timestamp}`);
+      try {
+        const { initializeDatabase } = require('./models/initDb');
+        await initializeDatabase();
+      } catch (e) {
+        console.warn('[PostgreSQL] Auto-init notice:', e.message);
+      }
     } else {
       console.warn(`[PostgreSQL] Connection warning: ${dbCheck.error}`);
       console.warn(`[PostgreSQL] Tip: Run 'npm run init-db' once database service and credentials in backend/.env are configured.`);

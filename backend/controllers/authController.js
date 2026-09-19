@@ -62,24 +62,25 @@ exports.register = async (req, res, next) => {
 
 exports.login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, username, password } = req.body;
+    const identifier = email || username;
 
-    if (!email || !password) {
+    if (!identifier || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Email and password are required.',
+        message: 'Username/email and password are required.',
       });
     }
 
     const result = await query(
-      'SELECT id, username, email, password_hash, created_at FROM users WHERE email = $1',
-      [email.toLowerCase()]
+      'SELECT id, username, email, password_hash, created_at FROM users WHERE email = $1 OR username = $2',
+      [identifier.toLowerCase(), identifier]
     );
 
     if (result.rows.length === 0) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password.',
+        message: 'Invalid username/email or password.',
       });
     }
 

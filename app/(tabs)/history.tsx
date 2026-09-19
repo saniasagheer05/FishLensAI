@@ -70,7 +70,6 @@ export default function HistoryScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
       <Header
-        onMenuPress={() => router.push('/(tabs)/settings')}
         onAvatarPress={() => router.push('/(tabs)/settings')}
       />
 

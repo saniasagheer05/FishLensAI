@@ -2,24 +2,62 @@ import { Platform } from 'react-native';
 import { FishAnalysisResult, FishSpecies, FreshnessStatus } from '../ai/types';
 import { SPECIES_DATABASE } from '../database/speciesData';
 
-// Default API URL (localhost on web, 10.0.2.2 on Android emulator, or LAN IP)
+import { AuthStorage } from '../auth/authStorage';
+
+// Default API URL (from EXPO_PUBLIC_API_URL or environment, fallback to localhost)
 const getApiBaseUrl = () => {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, '');
+  }
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:5000/api';
   }
   return 'http://localhost:5000/api';
 };
 
-export const API_BASE_URL = getApiBaseUrl();
+export let API_BASE_URL = getApiBaseUrl();
 
 class ApiClient {
   private token: string | null = null;
+  private baseUrl: string = API_BASE_URL;
+
+  constructor() {
+    // Attempt asynchronous retrieval of stored token
+    AuthStorage.getToken().then((tok) => {
+      if (tok) {
+        this.token = tok;
+      }
+    }).catch(() => {});
+  }
 
   public setToken(token: string | null) {
     this.token = token;
   }
 
-  private getHeaders(): Record<string, string> {
+  public getToken(): string | null {
+    return this.token;
+  }
+
+  public setBaseUrl(url: string) {
+    this.baseUrl = url.replace(/\/$/, '');
+    API_BASE_URL = this.baseUrl;
+  }
+
+  public getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
+  private async getHeaders(): Promise<Record<string, string>> {
+    // Ensure token is loaded from SecureStore if null
+    if (!this.token) {
+      try {
+        const stored = await AuthStorage.getToken();
+        if (stored) {
+          this.token = stored;
+        }
+      } catch {}
+    }
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -29,10 +67,74 @@ class ApiClient {
     return headers;
   }
 
+  // 0. Authentication API
+  public async register(
+    username: string,
+    email: string,
+    password: string
+  ): Promise<{ success: boolean; data?: { user: any; token: string }; message?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email, password }),
+      });
+      const json = await res.json();
+      if (json.success && json.data?.token) {
+        this.setToken(json.data.token);
+        await AuthStorage.saveToken(json.data.token);
+        if (json.data.user) {
+          await AuthStorage.saveUser(json.data.user);
+        }
+      }
+      return json;
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Network error during registration' };
+    }
+  }
+
+  public async login(
+    identifier: string,
+    password: string
+  ): Promise<{ success: boolean; data?: { user: any; token: string }; message?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: identifier.includes('@') ? identifier : undefined,
+          username: !identifier.includes('@') ? identifier : undefined,
+          password,
+        }),
+      });
+      const json = await res.json();
+      if (json.success && json.data?.token) {
+        this.setToken(json.data.token);
+        await AuthStorage.saveToken(json.data.token);
+        if (json.data.user) {
+          await AuthStorage.saveUser(json.data.user);
+        }
+      }
+      return json;
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Network error during login' };
+    }
+  }
+
+  public async getProfile(): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const res = await fetch(`${this.baseUrl}/auth/profile`, { headers });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, message: err.message };
+    }
+  }
+
   // 1. Health Check
   public async checkHealth(): Promise<{ status: string; database: any }> {
     try {
-      const res = await fetch(`${API_BASE_URL}/health`);
+      const res = await fetch(`${this.baseUrl}/health`);
       return await res.json();
     } catch (err: any) {
       return { status: 'unreachable', database: { connected: false, error: err.message } };
@@ -42,8 +144,9 @@ class ApiClient {
   // 2. Species Data
   public async getSpecies(): Promise<FishSpecies[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/species`, {
-        headers: this.getHeaders(),
+      const headers = await this.getHeaders();
+      const res = await fetch(`${this.baseUrl}/species`, {
+        headers,
       });
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
@@ -74,6 +177,7 @@ class ApiClient {
   // 3. Save Scan Result
   public async saveScan(scan: FishAnalysisResult): Promise<boolean> {
     try {
+      const headers = await this.getHeaders();
       const payload = {
         id: scan.id,
         species_id: scan.species.id,
@@ -94,9 +198,9 @@ class ApiClient {
         timestamp: scan.timestamp,
       };
 
-      const res = await fetch(`${API_BASE_URL}/scans`, {
+      const res = await fetch(`${this.baseUrl}/scans`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers,
         body: JSON.stringify(payload),
       });
 
@@ -111,8 +215,9 @@ class ApiClient {
   // 4. Get Scan History
   public async getScanHistory(): Promise<FishAnalysisResult[]> {
     try {
-      const res = await fetch(`${API_BASE_URL}/scans`, {
-        headers: this.getHeaders(),
+      const headers = await this.getHeaders();
+      const res = await fetch(`${this.baseUrl}/scans`, {
+        headers,
       });
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
@@ -187,9 +292,10 @@ class ApiClient {
   // 5. Delete Scan
   public async deleteScan(id: string): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE_URL}/scans/${id}`, {
+      const headers = await this.getHeaders();
+      const res = await fetch(`${this.baseUrl}/scans/${id}`, {
         method: 'DELETE',
-        headers: this.getHeaders(),
+        headers,
       });
       const json = await res.json();
       return json.success === true;
@@ -202,9 +308,10 @@ class ApiClient {
   // 6. Clear History
   public async clearHistory(): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE_URL}/scans`, {
+      const headers = await this.getHeaders();
+      const res = await fetch(`${this.baseUrl}/scans`, {
         method: 'DELETE',
-        headers: this.getHeaders(),
+        headers,
       });
       const json = await res.json();
       return json.success === true;
@@ -234,9 +341,10 @@ class ApiClient {
       }
     }
 
-    const res = await fetch(`${API_BASE_URL}/scans/analyze`, {
+    const headers = await this.getHeaders();
+    const res = await fetch(`${this.baseUrl}/scans/analyze`, {
       method: 'POST',
-      headers: this.getHeaders(),
+      headers,
       body: JSON.stringify({ image_uri: payloadUri }),
     });
 

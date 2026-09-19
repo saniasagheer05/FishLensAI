@@ -10,10 +10,20 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AuthStorage } from '../services/auth/authStorage';
 
 export default function WelcomeScreen() {
-  const handleEnter = () => {
-    router.replace('/(tabs)/home');
+  const handleEnter = async () => {
+    try {
+      const isAuth = await AuthStorage.isAuthenticated();
+      if (isAuth) {
+        router.replace('/(tabs)/home');
+      } else {
+        router.replace('/login');
+      }
+    } catch {
+      router.replace('/login');
+    }
   };
 
   useEffect(() => {

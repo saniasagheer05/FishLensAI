@@ -21,10 +21,13 @@
         "backgroundColor": "#FAF8F5"
       },
       "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
-      ]
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.saniassagheer.fishlensai"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -43,7 +46,16 @@
         {
           "photosPermission": "Allow FishLensAI to access your photos to analyze fish images."
         }
-      ]
-    ]
+      ],
+      "expo-secure-store"
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "4467f33a-425f-4ad5-af49-e6e1819aa536"
+      }
+    }
   }
 }
