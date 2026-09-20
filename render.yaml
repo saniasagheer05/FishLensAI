@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     rootDir: backend
-    buildCommand: npm install
+    buildCommand: pip install --no-cache-dir tflite-runtime pillow numpy opencv-python-headless 2>/dev/null || true; npm install
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:

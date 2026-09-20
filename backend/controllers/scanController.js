@@ -5,8 +5,107 @@ const os = require('os');
 const path = require('path');
 
 const PROJECT_ROOT = path.resolve(__dirname, '../../');
-const PYTHON_PATH = path.join(PROJECT_ROOT, 'tflite_env/Scripts/python.exe');
-const PREDICT_SCRIPT = path.join(PROJECT_ROOT, 'ml/src/predict_unified.py');
+
+/**
+ * Resolves the Python executable across platforms (Windows, Linux, macOS)
+ * and hosting environments (Render, local dev, Docker).
+ */
+function getPythonExecutable() {
+  // 1. Check explicit environment variables
+  if (process.env.PYTHON_PATH) {
+    if (fs.existsSync(process.env.PYTHON_PATH) || !path.isAbsolute(process.env.PYTHON_PATH)) {
+      return process.env.PYTHON_PATH;
+    }
+  }
+  if (process.env.PYTHON_EXE) {
+    if (fs.existsSync(process.env.PYTHON_EXE) || !path.isAbsolute(process.env.PYTHON_EXE)) {
+      return process.env.PYTHON_EXE;
+    }
+  }
+
+  const isWin = process.platform === 'win32';
+
+  // Candidate roots where virtual environments could be located
+  const searchRoots = [
+    PROJECT_ROOT,
+    path.resolve(__dirname, '../..'),
+    path.resolve(__dirname, '..'),
+    path.resolve(__dirname, '.'),
+    '/opt/render/project/src',
+  ];
+
+  if (isWin) {
+    const winRelPaths = [
+      'tflite_env/Scripts/python.exe',
+      '.venv/Scripts/python.exe',
+      'venv/Scripts/python.exe',
+    ];
+    for (const root of searchRoots) {
+      for (const rel of winRelPaths) {
+        const full = path.join(root, rel);
+        if (fs.existsSync(full)) {
+          return full;
+        }
+      }
+    }
+    return 'python.exe';
+  }
+
+  // Linux / Render candidates
+  const linuxRelPaths = [
+    'tflite_env/bin/python',
+    'tflite_env/bin/python3',
+    '.venv/bin/python',
+    '.venv/bin/python3',
+    'venv/bin/python',
+    'venv/bin/python3',
+  ];
+
+  for (const root of searchRoots) {
+    for (const rel of linuxRelPaths) {
+      const full = path.join(root, rel);
+      if (fs.existsSync(full)) {
+        return full;
+      }
+    }
+  }
+
+  // Common Linux system paths (including Render)
+  const systemPaths = [
+    '/opt/render/project/src/tflite_env/bin/python',
+    '/opt/render/project/src/tflite_env/bin/python3',
+    '/usr/bin/python3',
+    '/usr/local/bin/python3',
+    '/usr/bin/python',
+    '/usr/local/bin/python',
+  ];
+
+  for (const sysPath of systemPaths) {
+    if (fs.existsSync(sysPath)) {
+      return sysPath;
+    }
+  }
+
+  return 'python3';
+}
+
+/**
+ * Resolves the path to ml/src/predict_unified.py across local and cloud environments
+ */
+function getPredictScript() {
+  const candidates = [
+    path.join(PROJECT_ROOT, 'ml/src/predict_unified.py'),
+    path.resolve(__dirname, '../../ml/src/predict_unified.py'),
+    path.resolve(__dirname, '../ml/src/predict_unified.py'),
+    '/opt/render/project/src/ml/src/predict_unified.py',
+  ];
+  for (const cand of candidates) {
+    if (fs.existsSync(cand)) {
+      return cand;
+    }
+  }
+  return path.join(PROJECT_ROOT, 'ml/src/predict_unified.py');
+}
 
 exports.analyzeScan = async (req, res, next) => {
   let tempFilePath = null;
@@ -63,8 +162,12 @@ exports.analyzeScan = async (req, res, next) => {
       }
     }
 
-    // Execute predict_unified.py via Python executable
-    execFile(PYTHON_PATH, [PREDICT_SCRIPT, inputPathForPython], { maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+    // Execute predict_unified.py via dynamically resolved Python executable
+    const pythonExe = getPythonExecutable();
+    const predictScript = getPredictScript();
+    console.log(`[analyzeScan] Invoking inference via: "${pythonExe}" "${predictScript}"`);
+
+    execFile(pythonExe, [predictScript, inputPathForPython], { maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
       // Clean up temp file
       if (tempFilePath && fs.existsSync(tempFilePath)) {
         try { fs.unlinkSync(tempFilePath); } catch (e) {}
@@ -75,7 +178,9 @@ exports.analyzeScan = async (req, res, next) => {
         return res.status(500).json({
           success: false,
           message: `Inference failed: ${error.message}`,
-          details: stderr,
+          details: stderr || stdout || '',
+          pythonExe,
+          predictScript,
         });
       }
 

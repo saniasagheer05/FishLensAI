@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "test": "node test_api.js",
-    "init-db": "node models/initDb.js"
+    "init-db": "node models/initDb.js",
+    "postinstall": "node scripts/setup-python.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
