@@ -3,6 +3,7 @@ import { FishAnalysisResult, FishSpecies, FreshnessStatus } from '../ai/types';
 import { SPECIES_DATABASE } from '../database/speciesData';
 
 import { AuthStorage } from '../auth/authStorage';
+import { ImageStorageService } from '../storage/imageStorage';
 
 // Default API URL (from EXPO_PUBLIC_API_URL or environment, fallback to render)
 const getApiBaseUrl = () => {
@@ -357,29 +358,20 @@ class ApiClient {
 
   // 7. Analyze Image via Backend ML Pipeline (TFLite Model 1 + Model 2 + Model 3)
   public async analyzeImage(imageUri: string): Promise<FishAnalysisResult> {
-    let payloadUri = imageUri;
+    // Ensure image is persisted to permanent document directory if native
+    const persistentUri = await ImageStorageService.persistImage(imageUri);
 
-    // Convert blob URL to base64 if running on web
-    if (imageUri.startsWith('blob:')) {
-      try {
-        const resp = await fetch(imageUri);
-        const blob = await resp.blob();
-        payloadUri = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-      } catch (err) {
-        console.warn('[ApiClient] Failed to convert blob to base64, passing original:', err);
-      }
-    }
+    // Convert to base64 data for robust transmission across network
+    const base64Data = await ImageStorageService.getBase64Data(persistentUri);
 
     const headers = await this.getHeaders();
     const res = await fetch(`${this.baseUrl}/scans/analyze`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ image_uri: payloadUri }),
+      body: JSON.stringify({
+        image_uri: persistentUri,
+        image_data: base64Data,
+      }),
     });
 
     const json = await this.safeParseJson(res);
@@ -403,7 +395,7 @@ class ApiClient {
       aCoeff: 0.0125,
       bCoeff: 3.02,
       defaultLengthCm: raw.morphometrics?.lengthCm || 30,
-      sampleImageUri: imageUri,
+      sampleImageUri: persistentUri,
     };
 
     const result: FishAnalysisResult = {

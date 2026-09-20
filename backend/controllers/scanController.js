@@ -23,23 +23,32 @@ exports.analyzeScan = async (req, res, next) => {
 
     let inputPathForPython = rawImage;
 
-    // Handle base64 / data URI
-    if (rawImage.startsWith('data:') || (!fs.existsSync(rawImage) && rawImage.length > 300)) {
+    // 1. Handle base64 / data URI directly (length > 300 or data: prefix)
+    if (rawImage.startsWith('data:') || rawImage.length > 300) {
       let b64 = rawImage;
       if (b64.includes(',')) {
         b64 = b64.split(',')[1];
       }
+      b64 = b64.trim();
       const buffer = Buffer.from(b64, 'base64');
       tempFilePath = path.join(os.tmpdir(), `fishlens_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.jpg`);
       fs.writeFileSync(tempFilePath, buffer);
       inputPathForPython = tempFilePath;
     } else if (rawImage.startsWith('http://') || rawImage.startsWith('https://')) {
+      // 2. Remote HTTP/HTTPS URL
       const resp = await fetch(rawImage);
       const arrayBuf = await resp.arrayBuffer();
       tempFilePath = path.join(os.tmpdir(), `fishlens_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.jpg`);
       fs.writeFileSync(tempFilePath, Buffer.from(arrayBuf));
       inputPathForPython = tempFilePath;
+    } else if (rawImage.startsWith('file://')) {
+      // 3. Client device URI without base64 data
+      return res.status(400).json({
+        success: false,
+        message: `Client device URI received without valid image_data base64 payload: ${rawImage}`,
+      });
     } else {
+      // 4. Server-side local path
       if (!path.isAbsolute(inputPathForPython)) {
         const candidate = path.resolve(PROJECT_ROOT, inputPathForPython);
         if (fs.existsSync(candidate)) {
@@ -49,7 +58,7 @@ exports.analyzeScan = async (req, res, next) => {
       if (!fs.existsSync(inputPathForPython)) {
         return res.status(400).json({
           success: false,
-          message: `Image file does not exist: ${inputPathForPython}`,
+          message: `Image file does not exist on server: ${inputPathForPython}`,
         });
       }
     }

@@ -15,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import BoundingBoxOverlay from '../../components/BoundingBoxOverlay';
 import Colors from '../../constants/Colors';
 import Typography from '../../constants/Typography';
+import { ImageStorageService } from '../../services/storage/imageStorage';
 
 export default function CameraScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -40,9 +41,10 @@ export default function CameraScanScreen() {
           skipProcessing: false,
         });
         if (photo?.uri) {
+          const persistentUri = await ImageStorageService.persistImage(photo.uri);
           router.push({
             pathname: '/scan/analyzing',
-            params: { imageUri: encodeURIComponent(photo.uri) },
+            params: { imageUri: encodeURIComponent(persistentUri) },
           });
           return;
         }
@@ -68,10 +70,10 @@ export default function CameraScanScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        const pickedUri = asset.uri;
+        const persistentUri = await ImageStorageService.persistImage(asset.uri);
         router.push({
           pathname: '/scan/analyzing',
-          params: { imageUri: encodeURIComponent(pickedUri) },
+          params: { imageUri: encodeURIComponent(persistentUri) },
         });
       }
     } catch (e) {

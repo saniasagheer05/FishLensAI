@@ -14,6 +14,7 @@ import * as ImagePicker from 'expo-image-picker';
 import Header from '../../components/Header';
 import Colors from '../../constants/Colors';
 import Typography from '../../constants/Typography';
+import { ImageStorageService } from '../../services/storage/imageStorage';
 
 export default function HomeScreen() {
   const handleStartScan = () => {
@@ -40,18 +41,11 @@ export default function HomeScreen() {
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        const selectedUri = asset.uri;
-        console.log('[FishLensAI DIAGNOSTIC - STAGE 1: IMAGE SELECTION/UPLOAD (Home)]', {
-          name: asset.fileName || (asset as any).name || 'unknown_filename',
-          size: asset.fileSize || (asset as any).size || 'unknown_size',
-          type: asset.mimeType || (asset as any).type || 'image',
-          uriLength: selectedUri.length,
-          uriPreview: selectedUri.slice(0, 80),
-        });
+        const selectedUri = result.assets[0].uri;
+        const persistentUri = await ImageStorageService.persistImage(selectedUri);
         router.push({
           pathname: '/scan/analyzing',
-          params: { imageUri: encodeURIComponent(selectedUri) },
+          params: { imageUri: encodeURIComponent(persistentUri) },
         });
       }
     } catch (e) {
