@@ -22,10 +22,17 @@ class ApiClient {
   private baseUrl: string = API_BASE_URL;
 
   constructor() {
-    // Attempt asynchronous retrieval of stored token
+    // Attempt asynchronous retrieval of stored token and custom API URL
     AuthStorage.getToken().then((tok) => {
       if (tok) {
         this.token = tok;
+      }
+    }).catch(() => {});
+
+    AuthStorage.getCustomApiUrl().then((url) => {
+      if (url && url.trim().length > 0) {
+        this.baseUrl = url.trim().replace(/\/$/, '');
+        API_BASE_URL = this.baseUrl;
       }
     }).catch(() => {});
   }
@@ -39,12 +46,37 @@ class ApiClient {
   }
 
   public setBaseUrl(url: string) {
-    this.baseUrl = url.replace(/\/$/, '');
+    this.baseUrl = url.trim().replace(/\/$/, '');
     API_BASE_URL = this.baseUrl;
+    AuthStorage.saveCustomApiUrl(this.baseUrl).catch(() => {});
   }
 
   public getBaseUrl(): string {
     return this.baseUrl;
+  }
+
+  // Safely parse JSON response, avoiding "Unexpected character: N" when server returns HTML errors
+  public async safeParseJson(res: Response): Promise<{ success: boolean; data?: any; message?: string; status?: string }> {
+    let text = '';
+    try {
+      text = await res.text();
+    } catch (e: any) {
+      return { success: false, message: `Failed to read response: ${e.message}` };
+    }
+
+    try {
+      const parsed = JSON.parse(text);
+      return parsed;
+    } catch {
+      const cleanSnippet = text.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+      const isHtml = text.trim().startsWith('<') || text.includes('<!DOCTYPE') || text.includes('<html>');
+      return {
+        success: false,
+        message: isHtml
+          ? `Server returned HTTP ${res.status} HTML (${cleanSnippet || 'Not Found'}). Check API URL.`
+          : `Server returned non-JSON (${res.status}): ${cleanSnippet || 'Empty response'}`,
+      };
+    }
   }
 
   private async getHeaders(): Promise<Record<string, string>> {
@@ -79,7 +111,7 @@ class ApiClient {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, email, password }),
       });
-      const json = await res.json();
+      const json = await this.safeParseJson(res);
       if (json.success && json.data?.token) {
         this.setToken(json.data.token);
         await AuthStorage.saveToken(json.data.token);
@@ -107,7 +139,7 @@ class ApiClient {
           password,
         }),
       });
-      const json = await res.json();
+      const json = await this.safeParseJson(res);
       if (json.success && json.data?.token) {
         this.setToken(json.data.token);
         await AuthStorage.saveToken(json.data.token);
@@ -125,17 +157,21 @@ class ApiClient {
     try {
       const headers = await this.getHeaders();
       const res = await fetch(`${this.baseUrl}/auth/profile`, { headers });
-      return await res.json();
+      return await this.safeParseJson(res);
     } catch (err: any) {
       return { success: false, message: err.message };
     }
   }
 
   // 1. Health Check
-  public async checkHealth(): Promise<{ status: string; database: any }> {
+  public async checkHealth(): Promise<{ status: string; database?: any; message?: string }> {
     try {
       const res = await fetch(`${this.baseUrl}/health`);
-      return await res.json();
+      const json = await this.safeParseJson(res);
+      if (json.status) {
+        return json as any;
+      }
+      return { status: res.ok ? 'ok' : 'error', database: json.data || json, message: json.message };
     } catch (err: any) {
       return { status: 'unreachable', database: { connected: false, error: err.message } };
     }
@@ -348,14 +384,9 @@ class ApiClient {
       body: JSON.stringify({ image_uri: payloadUri }),
     });
 
-    if (!res.ok) {
-      const errJson = await res.json().catch(() => ({}));
-      throw new Error(errJson.message || `Analysis failed with HTTP ${res.status}`);
-    }
-
-    const json = await res.json();
-    if (!json.success || !json.data) {
-      throw new Error(json.message || 'Analysis did not return valid result data');
+    const json = await this.safeParseJson(res);
+    if (!res.ok || !json.success || !json.data) {
+      throw new Error(json.message || `Analysis failed with HTTP ${res.status}`);
     }
 
     const raw = json.data;

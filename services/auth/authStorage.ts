@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 
 const TOKEN_KEY = 'fishlensai_jwt_token';
 const USER_KEY = 'fishlensai_auth_user';
+const API_URL_KEY = 'fishlensai_custom_api_url';
 
 export interface AuthUser {
   id: number;
@@ -95,6 +96,37 @@ export class AuthStorage {
       return raw ? JSON.parse(raw) : null;
     } catch (e) {
       console.warn('[AuthStorage] Failed to retrieve user:', e);
+      return null;
+    }
+  }
+
+  // Custom API URL configuration
+  static async saveCustomApiUrl(url: string): Promise<void> {
+    try {
+      if (Platform.OS === 'web') {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem(API_URL_KEY, url);
+        }
+      } else {
+        await SecureStore.setItemAsync(API_URL_KEY, url);
+      }
+    } catch (e) {
+      console.warn('[AuthStorage] Failed to save custom API URL:', e);
+    }
+  }
+
+  static async getCustomApiUrl(): Promise<string | null> {
+    try {
+      if (Platform.OS === 'web') {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          return window.localStorage.getItem(API_URL_KEY);
+        }
+        return null;
+      } else {
+        return await SecureStore.getItemAsync(API_URL_KEY);
+      }
+    } catch (e) {
+      console.warn('[AuthStorage] Failed to retrieve custom API URL:', e);
       return null;
     }
   }

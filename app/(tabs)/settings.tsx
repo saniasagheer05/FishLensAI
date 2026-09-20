@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
   Switch,
   Alert,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,10 +25,15 @@ export default function SettingsScreen() {
   const [isMetric, setIsMetric] = useState(true);
   const [showLiveReticle, setShowLiveReticle] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [backendUrl, setBackendUrl] = useState(apiClient.getBaseUrl());
+  const [isEditingUrl, setIsEditingUrl] = useState(false);
+  const [healthStatus, setHealthStatus] = useState<string | null>(null);
+  const [checkingHealth, setCheckingHealth] = useState(false);
 
   const checkUserStatus = async () => {
     const user = await AuthStorage.getUser();
     setCurrentUser(user);
+    setBackendUrl(apiClient.getBaseUrl());
   };
 
   useFocusEffect(
@@ -34,20 +42,69 @@ export default function SettingsScreen() {
     }, [])
   );
 
+  const executeLogout = async () => {
+    try {
+      await AuthStorage.clearAuth();
+      apiClient.setToken(null);
+      setCurrentUser(null);
+      router.replace('/login');
+    } catch (e) {
+      console.warn('Logout error:', e);
+      router.replace('/login');
+    }
+  };
+
   const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: async () => {
-          await AuthStorage.clearAuth();
-          apiClient.setToken(null);
-          setCurrentUser(null);
-          router.replace('/login');
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to sign out?')) {
+        executeLogout();
+      }
+      return;
+    }
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out of FishLensAI?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: executeLogout,
         },
-      },
-    ]);
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const handleCheckHealth = async () => {
+    setCheckingHealth(true);
+    setHealthStatus(null);
+    try {
+      const res = await apiClient.checkHealth();
+      if (res.status === 'ok') {
+        const dbMode = res.database?.mode || (res.database?.connected ? 'PostgreSQL Live' : 'Offline');
+        setHealthStatus(`Online (${dbMode})`);
+      } else {
+        setHealthStatus(`Status: ${res.status || 'Degraded'} - ${res.message || 'Check URL'}`);
+      }
+    } catch (e: any) {
+      setHealthStatus(`Unreachable: ${e.message}`);
+    } finally {
+      setCheckingHealth(false);
+    }
+  };
+
+  const handleSaveBackendUrl = () => {
+    const trimmed = backendUrl.trim().replace(/\/$/, '');
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      Alert.alert('Invalid URL', 'Backend URL must start with http:// or https://');
+      return;
+    }
+    apiClient.setBaseUrl(trimmed);
+    setBackendUrl(trimmed);
+    setIsEditingUrl(false);
+    Alert.alert('Backend Updated', `API base URL set to:\n${trimmed}`);
+    handleCheckHealth();
   };
 
   const handleClearHistory = () => {
@@ -112,28 +169,122 @@ export default function SettingsScreen() {
                   <Feather name="log-out" size={18} color="#D14343" style={styles.settingIcon} />
                   <View>
                     <Text style={[styles.settingTitle, { color: '#D14343' }]}>Sign Out</Text>
-                    <Text style={styles.settingSubtitle}>Log out of your FishLensAI account</Text>
+                    <Text style={styles.settingSubtitle}>Log out and return to sign in screen</Text>
                   </View>
                 </View>
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={styles.settingRow}>
-              <View style={styles.settingInfo}>
-                <View style={styles.avatarCircle}>
-                  <Feather name="user-x" size={20} color="#8A9E96" />
+            <View>
+              <View style={styles.settingRow}>
+                <View style={styles.settingInfo}>
+                  <View style={styles.avatarCircle}>
+                    <Feather name="user-x" size={20} color="#8A9E96" />
+                  </View>
+                  <View>
+                    <Text style={styles.settingTitle}>Guest Mode</Text>
+                    <Text style={styles.settingSubtitle}>Local scan mode</Text>
+                  </View>
                 </View>
-                <View>
-                  <Text style={styles.settingTitle}>Guest Mode</Text>
-                  <Text style={styles.settingSubtitle}>Sign in to sync your scans across devices</Text>
+                <TouchableOpacity
+                  style={styles.unitToggle}
+                  onPress={() => router.push('/login')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.unitToggleText}>Sign In / Register</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.settingRow, styles.borderTop]}
+                onPress={executeLogout}
+                activeOpacity={0.7}
+              >
+                <View style={styles.settingInfo}>
+                  <Feather name="refresh-cw" size={18} color="#D14343" style={styles.settingIcon} />
+                  <View>
+                    <Text style={[styles.settingTitle, { color: '#D14343' }]}>Reset Auth Session</Text>
+                    <Text style={styles.settingSubtitle}>Clear stored tokens and restart sign in</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* Section 0b: Backend Connection Management */}
+        <View style={styles.sectionCard}>
+          <View style={styles.headerWithAction}>
+            <Text style={styles.sectionHeader}>Backend Server</Text>
+            <TouchableOpacity
+              style={styles.smallActionBtn}
+              onPress={handleCheckHealth}
+              disabled={checkingHealth}
+            >
+              {checkingHealth ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Text style={styles.smallActionText}>Test Status</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {healthStatus ? (
+            <View style={[styles.statusBanner, healthStatus.includes('Online') ? styles.statusOk : styles.statusErr]}>
+              <Feather
+                name={healthStatus.includes('Online') ? 'check-circle' : 'alert-triangle'}
+                size={14}
+                color={healthStatus.includes('Online') ? '#2E7D32' : '#C62828'}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.statusBannerText, healthStatus.includes('Online') ? { color: '#2E7D32' } : { color: '#C62828' }]}>
+                {healthStatus}
+              </Text>
+            </View>
+          ) : null}
+
+          {isEditingUrl ? (
+            <View style={styles.editUrlContainer}>
+              <TextInput
+                style={styles.urlInput}
+                value={backendUrl}
+                onChangeText={setBackendUrl}
+                placeholder="https://your-backend.onrender.com/api"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <View style={styles.editUrlActions}>
+                <TouchableOpacity
+                  style={[styles.smallBtn, { backgroundColor: '#ECE6DC' }]}
+                  onPress={() => setIsEditingUrl(false)}
+                >
+                  <Text style={styles.smallBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.smallBtn, { backgroundColor: Colors.primary }]}
+                  onPress={handleSaveBackendUrl}
+                >
+                  <Text style={[styles.smallBtnText, { color: '#FFFFFF' }]}>Save URL</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.settingRow}>
+              <View style={[styles.settingInfo, { flex: 1 }]}>
+                <Feather name="globe" size={18} color={Colors.primary} style={styles.settingIcon} />
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={styles.settingTitle}>API Base URL</Text>
+                  <Text style={styles.urlDisplay} numberOfLines={1} ellipsizeMode="middle">
+                    {backendUrl}
+                  </Text>
                 </View>
               </View>
               <TouchableOpacity
                 style={styles.unitToggle}
-                onPress={() => router.push('/login')}
+                onPress={() => setIsEditingUrl(true)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.unitToggleText}>Sign In</Text>
+                <Text style={styles.unitToggleText}>Change</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -393,5 +544,80 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#76887F',
     lineHeight: 16,
+  },
+  headerWithAction: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  smallActionBtn: {
+    backgroundColor: '#E5F2EB',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  smallActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  statusOk: {
+    backgroundColor: '#E8F5E9',
+    borderWidth: 1,
+    borderColor: '#C8E6C9',
+  },
+  statusErr: {
+    backgroundColor: '#FFEBEE',
+    borderWidth: 1,
+    borderColor: '#FFCDD2',
+  },
+  statusBannerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
+  },
+  editUrlContainer: {
+    marginTop: 6,
+  },
+  urlInput: {
+    backgroundColor: '#F8F6F2',
+    borderWidth: 1,
+    borderColor: '#ECE6DC',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: '#1D2A24',
+    marginBottom: 10,
+  },
+  editUrlActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  smallBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  smallBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1D2A24',
+  },
+  urlDisplay: {
+    ...Typography.caption,
+    fontSize: 11,
+    color: '#65776E',
+    marginTop: 2,
   },
 });
