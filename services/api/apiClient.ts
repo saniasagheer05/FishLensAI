@@ -4,15 +4,13 @@ import { SPECIES_DATABASE } from '../database/speciesData';
 
 import { AuthStorage } from '../auth/authStorage';
 
-// Default API URL (from EXPO_PUBLIC_API_URL or environment, fallback to localhost)
+// Default API URL (from EXPO_PUBLIC_API_URL or environment, fallback to render)
 const getApiBaseUrl = () => {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL.replace(/\/$/, '');
   }
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5000/api';
-  }
-  return 'http://localhost:5000/api';
+  
+  return 'https://fishlensai-backend.onrender.com/api';
 };
 
 export let API_BASE_URL = getApiBaseUrl();
