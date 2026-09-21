@@ -12,7 +12,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Backend-4169E1?logo=postgresql)](https://www.postgresql.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-[Live Demo (Web)](fish-lens-ai.vercel.app) · [Download APK](https://expo.dev/accounts/saniassagheer/projects/fishlensai/builds/1ab6bae1-23db-473a-9fde-d0e84cd3a779) · [Report Bug](../../issues)
+[Live Demo (Web)](https://fish-lens-ai.vercel.app) · [Download APK](https://expo.dev/accounts/saniassagheer/projects/fishlensai/builds/1ab6bae1-23db-473a-9fde-d0e84cd3a779) · [Report Bug](../../issues)
 
 </div>
 
