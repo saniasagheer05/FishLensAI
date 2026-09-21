@@ -44,6 +44,15 @@ The project was built end-to-end: dataset engineering, model training, computer 
 - 🔌 **Fully on-device inference** for Models 1 & 2 — no network dependency for the core AI, works offline
 
 ---
+## 📱 Screenshots
+
+| Welcome | Login | Home Screen | Analysis Result 1 |
+| ------- | ----- | ------------ | ------------------ |
+| ![Welcome screen](https://raw.githubusercontent.com/saniasagheer05/FishLensAI/2c5e593671f10711547bfaf5595ebe97b3f29aa4/F1.jpeg) | ![Login screen](https://raw.githubusercontent.com/saniasagheer05/FishLensAI/2c5e593671f10711547bfaf5595ebe97b3f29aa4/f2.jpeg) | ![Home screen](https://raw.githubusercontent.com/saniasagheer05/FishLensAI/2c5e593671f10711547bfaf5595ebe97b3f29aa4/f3.jpeg) | ![Species and freshness analysis result](https://raw.githubusercontent.com/saniasagheer05/FishLensAI/2c5e593671f10711547bfaf5595ebe97b3f29aa4/f4.jpeg) |
+
+| Analysis Result 2 | Scan History | Settings |
+| ------------------ | ------------- | -------- |
+| ![Weight and volume analysis result](https://raw.githubusercontent.com/saniasagheer05/FishLensAI/2c5e593671f10711547bfaf5595ebe97b3f29aa4/f5.jpeg) | ![Scan history list](https://raw.githubusercontent.com/saniasagheer05/FishLensAI/2c5e593671f10711547bfaf5595ebe97b3f29aa4/f6.jpeg) | ![Settings screen](https://raw.githubusercontent.com/saniasagheer05/FishLensAI/2c5e593671f10711547bfaf5595ebe97b3f29aa4/f7.jpeg) |
 
 ## 🏗️ System Architecture
 
