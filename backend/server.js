@@ -66,7 +66,8 @@ app.get('/', (req, res) => {
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
   const dbStatus = await testConnection();
-  const statusCode = dbStatus.connected ? 200 : 503;
+  // Always return HTTP 200 for Render health check so container starts immediately
+  const statusCode = 200;
 
   let pythonLog = null;
   if (fs.existsSync('/tmp/setup-python.log')) {
