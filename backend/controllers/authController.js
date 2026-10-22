@@ -239,11 +239,17 @@ exports.requestPasswordReset = async (req, res, next) => {
 
     // 7. Send the email via Gmail SMTP (or fallback dev mode)
     try {
-      await emailService.sendPasswordResetOtp({
+      const emailResult = await emailService.sendPasswordResetOtp({
         toEmail: user.email,
         otpCode: otp,
         username: user.username,
       });
+      if (emailResult && emailResult.success === false) {
+        return res.status(503).json({
+          success: false,
+          message: emailResult.message || 'Email delivery service is currently unavailable. Please contact support.',
+        });
+      }
     } catch (emailErr) {
       console.error('[requestPasswordReset Email Error]:', emailErr.message);
       return res.status(500).json({

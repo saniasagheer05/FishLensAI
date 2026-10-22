@@ -27,6 +27,9 @@ function createTransporter() {
       user: user.trim(),
       pass: pass.trim().replace(/\s+/g, ''), // Strip spaces from Gmail app passwords
     },
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000,
   });
 }
 
@@ -157,7 +160,17 @@ FishLensAI Security Team
     }
   }
 
-  // Development Fallback: Credentials not yet set in .env
+  // Fallback when Gmail SMTP credentials are not configured in environment
+  if (process.env.NODE_ENV === 'production') {
+    console.warn(`[EmailService] Password reset requested for ${toEmail}, but GMAIL_USER / GMAIL_APP_PASSWORD are not configured in environment variables. Email cannot be delivered.`);
+    return {
+      success: false,
+      mode: 'missing_credentials',
+      message: 'Email service is not configured on the server. Please contact support.',
+    };
+  }
+
+  // Development / Test only: Log OTP to console for local developer testing
   console.log('=================================================================');
   console.log('[EmailService (DEV FALLBACK)] GMAIL_USER / GMAIL_APP_PASSWORD not set in backend/.env');
   console.log(`[EmailService (DEV FALLBACK)] Password reset OTP for: ${toEmail}`);

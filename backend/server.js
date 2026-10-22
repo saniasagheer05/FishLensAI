@@ -120,19 +120,6 @@ if (process.env.NODE_ENV !== 'test') {
       console.warn(`[PostgreSQL] Connection warning: ${dbCheck.error}`);
     }
 
-    // Background verification of Python ML packages on Linux
-    if (process.platform !== 'win32') {
-      try {
-        const { fork } = require('child_process');
-        const setupScript = path.join(__dirname, 'scripts/setup-python.js');
-        if (fs.existsSync(setupScript)) {
-          const child = fork(setupScript, [], { detached: true, stdio: 'ignore' });
-          child.unref();
-        }
-      } catch (e) {
-        console.warn('[Python setup] Notice:', e.message);
-      }
-    }
   });
 }
 

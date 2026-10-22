@@ -65,6 +65,9 @@ class ApiClient {
 
     try {
       const parsed = JSON.parse(text);
+      if (!res.ok && parsed.success === undefined) {
+        parsed.success = false;
+      }
       return parsed;
     } catch {
       const cleanSnippet = text.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
@@ -75,6 +78,46 @@ class ApiClient {
           ? `Server returned HTTP ${res.status} HTML (${cleanSnippet || 'Not Found'}). Check API URL.`
           : `Server returned non-JSON (${res.status}): ${cleanSnippet || 'Empty response'}`,
       };
+    }
+  }
+
+  /**
+   * Helper method: Wrap fetch with AbortController timeout and provide clear network error messages.
+   * Render free tier can take 40-50s on initial cold start, but requests must never hang indefinitely.
+   */
+  public async fetchWithTimeout(
+    url: string,
+    options: RequestInit = {},
+    timeoutMs: number = 25000
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      return response;
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        throw new Error(
+          `Request timed out after ${Math.round(timeoutMs / 1000)}s. The backend server on Render may be waking up from sleep. Please wait a moment and try again.`
+        );
+      }
+      if (
+        error.message &&
+        (error.message.includes('Network request failed') ||
+          error.message.includes('Failed to fetch') ||
+          error.message.includes('ECONNRESET'))
+      ) {
+        throw new Error(
+          `Cannot connect to backend server (${this.baseUrl}). Please check your internet connection or verify the server is running.`
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -105,12 +148,15 @@ class ApiClient {
     password: string
   ): Promise<{ success: boolean; data?: { user: any; token: string }; message?: string }> {
     try {
-      const res = await fetch(`${this.baseUrl}/auth/register`, {
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, email, password }),
-      });
+      }, 25000);
       const json = await this.safeParseJson(res);
+      if (!res.ok && !json.message) {
+        json.message = `Registration failed with HTTP ${res.status}`;
+      }
       if (json.success && json.data?.token) {
         this.setToken(json.data.token);
         await AuthStorage.saveToken(json.data.token);
@@ -129,7 +175,7 @@ class ApiClient {
     password: string
   ): Promise<{ success: boolean; data?: { user: any; token: string }; message?: string }> {
     try {
-      const res = await fetch(`${this.baseUrl}/auth/login`, {
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -137,8 +183,11 @@ class ApiClient {
           username: !identifier.includes('@') ? identifier : undefined,
           password,
         }),
-      });
+      }, 25000);
       const json = await this.safeParseJson(res);
+      if (!res.ok && !json.message) {
+        json.message = `Login failed with HTTP ${res.status}`;
+      }
       if (json.success && json.data?.token) {
         this.setToken(json.data.token);
         await AuthStorage.saveToken(json.data.token);
@@ -155,7 +204,7 @@ class ApiClient {
   public async getProfile(): Promise<any> {
     try {
       const headers = await this.getHeaders();
-      const res = await fetch(`${this.baseUrl}/auth/profile`, { headers });
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/auth/profile`, { headers }, 20000);
       return await this.safeParseJson(res);
     } catch (err: any) {
       return { success: false, message: err.message };
@@ -166,12 +215,16 @@ class ApiClient {
     email: string
   ): Promise<{ success: boolean; message?: string }> {
     try {
-      const res = await fetch(`${this.baseUrl}/auth/forgot-password`, {
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
-      });
-      return await this.safeParseJson(res);
+      }, 25000);
+      const json = await this.safeParseJson(res);
+      if (!res.ok && !json.message) {
+        json.message = `Password reset request failed with HTTP ${res.status}`;
+      }
+      return json;
     } catch (err: any) {
       return { success: false, message: err.message || 'Network error requesting password reset' };
     }
@@ -183,12 +236,16 @@ class ApiClient {
     newPassword: string
   ): Promise<{ success: boolean; message?: string }> {
     try {
-      const res = await fetch(`${this.baseUrl}/auth/reset-password`, {
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp, newPassword }),
-      });
-      return await this.safeParseJson(res);
+      }, 25000);
+      const json = await this.safeParseJson(res);
+      if (!res.ok && !json.message) {
+        json.message = `Password reset failed with HTTP ${res.status}`;
+      }
+      return json;
     } catch (err: any) {
       return { success: false, message: err.message || 'Network error resetting password' };
     }
@@ -197,7 +254,7 @@ class ApiClient {
   // 1. Health Check
   public async checkHealth(): Promise<{ status: string; database?: any; message?: string }> {
     try {
-      const res = await fetch(`${this.baseUrl}/health`);
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/health`, {}, 15000);
       const json = await this.safeParseJson(res);
       if (json.status) {
         return json as any;
@@ -212,9 +269,9 @@ class ApiClient {
   public async getSpecies(): Promise<FishSpecies[]> {
     try {
       const headers = await this.getHeaders();
-      const res = await fetch(`${this.baseUrl}/species`, {
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/species`, {
         headers,
-      });
+      }, 20000);
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         return json.data.map((item: any) => ({
@@ -265,11 +322,11 @@ class ApiClient {
         timestamp: scan.timestamp,
       };
 
-      const res = await fetch(`${this.baseUrl}/scans`, {
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/scans`, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),
-      });
+      }, 25000);
 
       const json = await res.json();
       return json.success === true;
@@ -283,9 +340,9 @@ class ApiClient {
   public async getScanHistory(): Promise<FishAnalysisResult[]> {
     try {
       const headers = await this.getHeaders();
-      const res = await fetch(`${this.baseUrl}/scans`, {
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/scans`, {
         headers,
-      });
+      }, 25000);
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         return json.data.map((row: any): FishAnalysisResult => {
@@ -360,10 +417,10 @@ class ApiClient {
   public async deleteScan(id: string): Promise<boolean> {
     try {
       const headers = await this.getHeaders();
-      const res = await fetch(`${this.baseUrl}/scans/${id}`, {
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/scans/${id}`, {
         method: 'DELETE',
         headers,
-      });
+      }, 15000);
       const json = await res.json();
       return json.success === true;
     } catch (err) {
@@ -376,10 +433,10 @@ class ApiClient {
   public async clearHistory(): Promise<boolean> {
     try {
       const headers = await this.getHeaders();
-      const res = await fetch(`${this.baseUrl}/scans`, {
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/scans`, {
         method: 'DELETE',
         headers,
-      });
+      }, 15000);
       const json = await res.json();
       return json.success === true;
     } catch (err) {
@@ -397,14 +454,14 @@ class ApiClient {
     const base64Data = await ImageStorageService.getBase64Data(persistentUri);
 
     const headers = await this.getHeaders();
-    const res = await fetch(`${this.baseUrl}/scans/analyze`, {
+    const res = await this.fetchWithTimeout(`${this.baseUrl}/scans/analyze`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
         image_uri: persistentUri,
         image_data: base64Data,
       }),
-    });
+    }, 60000);
 
     const json = await this.safeParseJson(res);
     if (!res.ok || !json.success || !json.data) {

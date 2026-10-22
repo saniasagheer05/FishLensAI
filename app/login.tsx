@@ -70,8 +70,6 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const result = await apiClient.forgotPassword(targetEmail);
-      setLoading(false);
-
       if (result.success) {
         setSuccessMessage('A single-use 6-digit verification code has been sent to your email.');
         setForgotStep('verify');
@@ -80,8 +78,9 @@ export default function LoginScreen() {
         setErrorMessage(result.message || 'Unable to send password reset code. Please try again.');
       }
     } catch (err: any) {
-      setLoading(false);
       setErrorMessage(err.message || 'Unable to connect to server. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -116,8 +115,6 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const result = await apiClient.resetPassword(targetEmail, cleanOtp, newPassword);
-      setLoading(false);
-
       if (result.success) {
         Alert.alert(
           'Password Reset Successful',
@@ -143,8 +140,9 @@ export default function LoginScreen() {
         setErrorMessage(result.message || 'Failed to reset password. Please check the code and try again.');
       }
     } catch (err: any) {
-      setLoading(false);
       setErrorMessage(err.message || 'Unable to connect to server. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -175,8 +173,6 @@ export default function LoginScreen() {
       setLoading(true);
       try {
         const result = await apiClient.register(username.trim(), email.trim(), password);
-        setLoading(false);
-
         if (result.success) {
           Alert.alert('Welcome to FishLensAI', `Account created successfully for ${username}!`, [
             { text: 'Continue', onPress: () => router.replace('/(tabs)/home') },
@@ -185,8 +181,9 @@ export default function LoginScreen() {
           setErrorMessage(result.message || 'Registration failed. Please try again.');
         }
       } catch (err: any) {
-        setLoading(false);
         setErrorMessage(err.message || 'Unable to connect to server. Please try again.');
+      } finally {
+        setLoading(false);
       }
     } else {
       if (!emailOrUser.trim() || !password) {
@@ -197,16 +194,15 @@ export default function LoginScreen() {
       setLoading(true);
       try {
         const result = await apiClient.login(emailOrUser.trim(), password);
-        setLoading(false);
-
         if (result.success) {
           router.replace('/(tabs)/home');
         } else {
           setErrorMessage(result.message || 'Invalid credentials. Please try again.');
         }
       } catch (err: any) {
-        setLoading(false);
         setErrorMessage(err.message || 'Unable to connect to server. Please try again.');
+      } finally {
+        setLoading(false);
       }
     }
   };

@@ -1,3 +1,4 @@
+process.env.NODE_ENV = 'test';
 /**
  * Test Suite: Forgot Password & Reset Password Flow
  * Tests OTP generation, rate limiting, token expiration, single-use invalidation,
