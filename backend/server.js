@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const { testConnection } = require('./config/db');
@@ -43,6 +44,8 @@ app.get('/', (req, res) => {
       auth: {
         register: 'POST /api/auth/register',
         login: 'POST /api/auth/login',
+        forgotPassword: 'POST /api/auth/forgot-password',
+        resetPassword: 'POST /api/auth/reset-password',
         profile: 'GET /api/auth/profile (Bearer token)',
       },
       species: {
@@ -65,11 +68,19 @@ app.get('/api/health', async (req, res) => {
   const dbStatus = await testConnection();
   const statusCode = dbStatus.connected ? 200 : 503;
 
+  let pythonLog = null;
+  if (fs.existsSync('/tmp/setup-python.log')) {
+    try {
+      pythonLog = fs.readFileSync('/tmp/setup-python.log', 'utf-8').trim().split('\n').slice(-15);
+    } catch (e) {}
+  }
+
   res.status(statusCode).json({
     status: dbStatus.connected ? 'ok' : 'degraded',
     service: 'FishLensAI Backend',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+    pythonSetup: pythonLog,
     database: {
       type: 'PostgreSQL',
       ...dbStatus,
@@ -107,7 +118,20 @@ if (process.env.NODE_ENV !== 'test') {
       }
     } else {
       console.warn(`[PostgreSQL] Connection warning: ${dbCheck.error}`);
-      console.warn(`[PostgreSQL] Tip: Run 'npm run init-db' once database service and credentials in backend/.env are configured.`);
+    }
+
+    // Background verification of Python ML packages on Linux
+    if (process.platform !== 'win32') {
+      try {
+        const { fork } = require('child_process');
+        const setupScript = path.join(__dirname, 'scripts/setup-python.js');
+        if (fs.existsSync(setupScript)) {
+          const child = fork(setupScript, [], { detached: true, stdio: 'ignore' });
+          child.unref();
+        }
+      } catch (e) {
+        console.warn('[Python setup] Notice:', e.message);
+      }
     }
   });
 }

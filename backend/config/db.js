@@ -28,6 +28,7 @@ let isPgAvailable = null;
 // Fallback in-memory storage when PostgreSQL authentication is pending
 const inMemoryDb = {
   users: [],
+  password_resets: [],
   fish_species: [
     {
       id: 'rohu',
@@ -216,11 +217,91 @@ const query = async (text, params = []) => {
     return { rows: found, rowCount: found.length };
   }
 
-  // Users select by email
-  if (sql.includes('FROM users WHERE email = $1')) {
+  // Users select by email (case-insensitive)
+  if (sql.includes('FROM users') && (sql.includes('LOWER(email) = LOWER($1)') || sql.includes('email = $1'))) {
     const [email] = params;
-    const found = inMemoryDb.users.filter(u => u.email === email);
+    const found = inMemoryDb.users.filter(u => u.email.toLowerCase() === (email || '').toLowerCase());
     return { rows: found, rowCount: found.length };
+  }
+
+  // Users update password hash by email
+  if (sql.startsWith('UPDATE users SET password_hash = $1') && (sql.includes('LOWER(email) = LOWER($2)') || sql.includes('email = $2'))) {
+    const [password_hash, email] = params;
+    let updatedCount = 0;
+    inMemoryDb.users = inMemoryDb.users.map(u => {
+      if (u.email.toLowerCase() === (email || '').toLowerCase()) {
+        updatedCount++;
+        return { ...u, password_hash };
+      }
+      return u;
+    });
+    return { rows: [], rowCount: updatedCount };
+  }
+
+  // Password resets rate limiting count
+  if (sql.includes('FROM password_resets') && sql.includes('COUNT(*)')) {
+    const [email] = params;
+    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
+    const recent = inMemoryDb.password_resets.filter(
+      r => r.email.toLowerCase() === (email || '').toLowerCase() && new Date(r.created_at) > fifteenMinsAgo
+    );
+    const lastRequest = recent.length > 0 ? recent[recent.length - 1].created_at : null;
+    return {
+      rows: [{ recent_count: recent.length.toString(), last_request_at: lastRequest }],
+      rowCount: 1,
+    };
+  }
+
+  // Invalidate old password resets for email
+  if (sql.startsWith('UPDATE password_resets SET used = TRUE') && sql.includes('LOWER(email) = LOWER($1)')) {
+    const [email] = params;
+    let count = 0;
+    inMemoryDb.password_resets = inMemoryDb.password_resets.map(r => {
+      if (r.email.toLowerCase() === (email || '').toLowerCase() && !r.used) {
+        count++;
+        return { ...r, used: true };
+      }
+      return r;
+    });
+    return { rows: [], rowCount: count };
+  }
+
+  // Invalidate password reset by id
+  if (sql.startsWith('UPDATE password_resets SET used = TRUE WHERE id = $1')) {
+    const [id] = params;
+    inMemoryDb.password_resets = inMemoryDb.password_resets.map(r => {
+      if (r.id === id) {
+        return { ...r, used: true };
+      }
+      return r;
+    });
+    return { rows: [], rowCount: 1 };
+  }
+
+  // Insert password reset
+  if (sql.startsWith('INSERT INTO password_resets')) {
+    const [email, otp_hash, token, expires_at] = params;
+    const record = {
+      id: inMemoryDb.password_resets.length + 1,
+      email: (email || '').toLowerCase(),
+      otp_hash,
+      token,
+      expires_at: expires_at.toISOString ? expires_at.toISOString() : expires_at,
+      used: false,
+      created_at: new Date().toISOString(),
+    };
+    inMemoryDb.password_resets.push(record);
+    return { rows: [record], rowCount: 1 };
+  }
+
+  // Fetch active password reset by email
+  if (sql.includes('FROM password_resets') && sql.includes('used = FALSE')) {
+    const [email] = params;
+    const now = new Date();
+    const active = inMemoryDb.password_resets
+      .filter(r => r.email.toLowerCase() === (email || '').toLowerCase() && !r.used && new Date(r.expires_at) > now)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return { rows: active.slice(0, 1), rowCount: active.length > 0 ? 1 : 0 };
   }
 
   // Users select by id

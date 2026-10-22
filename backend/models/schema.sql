@@ -50,7 +50,20 @@ CREATE TABLE IF NOT EXISTS scan_results (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 4. Password Resets & OTP Table
+CREATE TABLE IF NOT EXISTS password_resets (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    otp_hash VARCHAR(255) NOT NULL,
+    token VARCHAR(255),
+    expires_at TIMESTAMPTZ NOT NULL,
+    used BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indexes for efficient queries
 CREATE INDEX IF NOT EXISTS idx_scan_results_user_id ON scan_results(user_id);
 CREATE INDEX IF NOT EXISTS idx_scan_results_created_at ON scan_results(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_fish_species_common_name ON fish_species(common_name);
+CREATE INDEX IF NOT EXISTS idx_password_resets_email ON password_resets(email);
+CREATE INDEX IF NOT EXISTS idx_password_resets_created_at ON password_resets(created_at DESC);

@@ -10,7 +10,26 @@ import sys
 import os
 import json
 import base64
-import io
+# Ensure user site packages and virtual environments are on sys.path
+try:
+    import site
+    user_site = site.getusersitepackages()
+    if isinstance(user_site, str) and os.path.isdir(user_site) and user_site not in sys.path:
+        sys.path.insert(0, user_site)
+except Exception:
+    pass
+
+for candidate in [
+    os.path.expanduser('~/.local/lib/python3.10/site-packages'),
+    os.path.expanduser('~/.local/lib/python3.11/site-packages'),
+    os.path.expanduser('~/.local/lib/python3.12/site-packages'),
+    '/opt/render/project/src/tflite_env/lib/python3.10/site-packages',
+    '/opt/render/project/src/tflite_env/lib/python3.11/site-packages',
+    '/opt/render/project/src/tflite_env/lib/python3.12/site-packages',
+]:
+    if os.path.isdir(candidate) and candidate not in sys.path:
+        sys.path.insert(0, candidate)
+
 import numpy as np
 from PIL import Image
 

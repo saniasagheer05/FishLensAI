@@ -1,9 +1,22 @@
 // Comprehensive API End-to-End Test Suite
+const app = require('./server');
+const emailService = require('./services/emailService');
+
+let server = null;
 
 async function runTests() {
   const BASE_URL = 'http://localhost:5000';
   console.log(`\n=== RUNNING FISHLENSAI BACKEND API VERIFICATION ===`);
   console.log(`Base URL: ${BASE_URL}\n`);
+
+  // Start server if not running
+  try {
+    await fetch(`${BASE_URL}/api/health`);
+  } catch (e) {
+    await new Promise((resolve) => {
+      server = app.listen(5000, resolve);
+    });
+  }
 
   let passCount = 0;
   let totalTests = 0;
@@ -76,6 +89,48 @@ async function runTests() {
     });
     const data = await res.json();
     if (!data.success || !data.data.id) throw new Error(data.message || 'Get profile failed');
+  });
+
+  // 3d. Forgot password request (OTP via Gmail SMTP)
+  let resetOtp = null;
+  await test('POST /api/auth/forgot-password - Request password reset code', async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: testUser.email }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Forgot password request failed');
+    resetOtp = emailService.getLastSentOtp()?.otpCode;
+    if (!resetOtp) throw new Error('Failed to retrieve OTP code from email service');
+  });
+
+  // 3e. Reset password with OTP
+  const updatedPassword = 'NewSecretPassword99!';
+  await test('POST /api/auth/reset-password - Reset password with OTP', async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: testUser.email,
+        otp: resetOtp,
+        newPassword: updatedPassword,
+      }),
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Password reset failed');
+  });
+
+  // 3f. Login with updated password
+  await test('POST /api/auth/login - Login with newly reset password', async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: testUser.email, password: updatedPassword }),
+    });
+    const data = await res.json();
+    if (!data.success || !data.data.token) throw new Error(data.message || 'Login after reset failed');
+    authToken = data.data.token;
   });
 
   // 4. Get Species List
@@ -178,10 +233,16 @@ async function runTests() {
   });
 
   console.log(`\n=== RESULTS: ${passCount}/${totalTests} TESTS PASSED ===\n`);
+  if (server) {
+    await new Promise((resolve) => server.close(resolve));
+  }
   process.exit(passCount === totalTests ? 0 : 1);
 }
 
-runTests().catch((err) => {
+runTests().catch(async (err) => {
   console.error('Fatal test error:', err);
+  if (server) {
+    await new Promise((resolve) => server.close(resolve));
+  }
   process.exit(1);
 });

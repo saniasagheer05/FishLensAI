@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -30,6 +30,130 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Forgot Password State
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [forgotStep, setForgotStep] = useState<'request' | 'verify'>('request');
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetOtp, setResetOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+
+  // Countdown timer for OTP resend cooldown
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setCooldownSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldownSeconds]);
+
+  const handleRequestResetOtp = async () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const targetEmail = resetEmail.trim().toLowerCase();
+    if (!targetEmail) {
+      setErrorMessage('Please enter your registered Gmail or email address.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(targetEmail)) {
+      setErrorMessage('Please enter a valid email address.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await apiClient.forgotPassword(targetEmail);
+      setLoading(false);
+
+      if (result.success) {
+        setSuccessMessage('A single-use 6-digit verification code has been sent to your email.');
+        setForgotStep('verify');
+        setCooldownSeconds(60);
+      } else {
+        setErrorMessage(result.message || 'Unable to send password reset code. Please try again.');
+      }
+    } catch (err: any) {
+      setLoading(false);
+      setErrorMessage(err.message || 'Unable to connect to server. Please try again.');
+    }
+  };
+
+  const handleConfirmResetPassword = async () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const targetEmail = resetEmail.trim().toLowerCase();
+    const cleanOtp = resetOtp.trim();
+
+    if (!cleanOtp) {
+      setErrorMessage('Please enter the 6-digit verification code sent to your email.');
+      return;
+    }
+    if (cleanOtp.length !== 6) {
+      setErrorMessage('Verification code must be exactly 6 digits.');
+      return;
+    }
+    if (!newPassword) {
+      setErrorMessage('Please enter your new password.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setErrorMessage('New password must be at least 6 characters long.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setErrorMessage('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await apiClient.resetPassword(targetEmail, cleanOtp, newPassword);
+      setLoading(false);
+
+      if (result.success) {
+        Alert.alert(
+          'Password Reset Successful',
+          'Your password has been securely updated. You can now sign in with your new password.',
+          [
+            {
+              text: 'Sign In Now',
+              onPress: () => {
+                setIsForgotPassword(false);
+                setForgotStep('request');
+                setEmailOrUser(targetEmail);
+                setPassword('');
+                setResetOtp('');
+                setNewPassword('');
+                setConfirmNewPassword('');
+                setErrorMessage(null);
+                setSuccessMessage(null);
+              },
+            },
+          ]
+        );
+      } else {
+        setErrorMessage(result.message || 'Failed to reset password. Please check the code and try again.');
+      }
+    } catch (err: any) {
+      setLoading(false);
+      setErrorMessage(err.message || 'Unable to connect to server. Please try again.');
+    }
+  };
+
+  const handleBackToLogin = () => {
+    setIsForgotPassword(false);
+    setForgotStep('request');
+    setErrorMessage(null);
+    setSuccessMessage(null);
+  };
 
   const handleSubmit = async () => {
     setErrorMessage(null);
@@ -114,41 +238,67 @@ export default function LoginScreen() {
                   resizeMode="contain"
                 />
               </View>
-              <Text style={styles.brandTitle}>FishLens AI</Text>
+              <Text style={styles.brandTitle}>
+                {isForgotPassword ? 'Reset Password' : 'FishLens AI'}
+              </Text>
               <Text style={styles.brandSubtitle}>
-                {isRegister
+                {isForgotPassword
+                  ? forgotStep === 'request'
+                    ? 'Enter your registered Gmail or email to receive a 6-digit reset code'
+                    : `Enter the code sent to ${resetEmail} and your new password`
+                  : isRegister
                   ? 'Create an account to track your fish scans'
                   : 'Sign in to access your scan history and cloud sync'}
               </Text>
             </View>
 
-            {/* Segmented Mode Switcher */}
-            <View style={styles.segmentedControl}>
+            {/* Back to Sign In button when in Forgot Password mode */}
+            {isForgotPassword ? (
               <TouchableOpacity
-                style={[styles.segmentBtn, !isRegister && styles.segmentBtnActive]}
-                onPress={() => {
-                  setIsRegister(false);
-                  setErrorMessage(null);
-                }}
-                activeOpacity={0.8}
+                style={styles.backButtonRow}
+                onPress={handleBackToLogin}
+                activeOpacity={0.7}
               >
-                <Text style={[styles.segmentText, !isRegister && styles.segmentTextActive]}>
-                  Sign In
-                </Text>
+                <Feather name="arrow-left" size={16} color="#73AA87" />
+                <Text style={styles.backButtonText}>Back to Sign In</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.segmentBtn, isRegister && styles.segmentBtnActive]}
-                onPress={() => {
-                  setIsRegister(true);
-                  setErrorMessage(null);
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.segmentText, isRegister && styles.segmentTextActive]}>
-                  Register
-                </Text>
-              </TouchableOpacity>
-            </View>
+            ) : (
+              /* Segmented Mode Switcher (Sign In vs Register) */
+              <View style={styles.segmentedControl}>
+                <TouchableOpacity
+                  style={[styles.segmentBtn, !isRegister && styles.segmentBtnActive]}
+                  onPress={() => {
+                    setIsRegister(false);
+                    setErrorMessage(null);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.segmentText, !isRegister && styles.segmentTextActive]}>
+                    Sign In
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.segmentBtn, isRegister && styles.segmentBtnActive]}
+                  onPress={() => {
+                    setIsRegister(true);
+                    setErrorMessage(null);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.segmentText, isRegister && styles.segmentTextActive]}>
+                    Register
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Success Banner */}
+            {successMessage ? (
+              <View style={styles.successCard}>
+                <Feather name="check-circle" size={16} color="#73AA87" style={styles.successIcon} />
+                <Text style={styles.successText}>{successMessage}</Text>
+              </View>
+            ) : null}
 
             {/* Error Banner */}
             {errorMessage ? (
@@ -158,9 +308,153 @@ export default function LoginScreen() {
               </View>
             ) : null}
 
-            {/* Form Fields */}
+            {/* Form Fields Card */}
             <View style={styles.formCard}>
-              {isRegister ? (
+              {isForgotPassword ? (
+                /* ================= FORGOT PASSWORD FLOW ================= */
+                forgotStep === 'request' ? (
+                  <>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Registered Email Address</Text>
+                      <View style={styles.inputWrapper}>
+                        <Feather name="mail" size={18} color="#73AA87" style={styles.inputIcon} />
+                        <TextInput
+                          style={styles.input}
+                          placeholder="e.g. user@gmail.com"
+                          placeholderTextColor="#5C7268"
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                          value={resetEmail}
+                          onChangeText={setResetEmail}
+                        />
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                      onPress={handleRequestResetOtp}
+                      disabled={loading}
+                      activeOpacity={0.85}
+                    >
+                      {loading ? (
+                        <ActivityIndicator color="#0C1B2F" size="small" />
+                      ) : (
+                        <>
+                          <Feather name="send" size={16} color="#0C1B2F" />
+                          <Text style={styles.submitButtonText}>Send Reset Code</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    {/* Step 2: Enter OTP Code & New Password */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>6-Digit Verification Code</Text>
+                      <View style={styles.inputWrapper}>
+                        <Feather name="shield" size={18} color="#73AA87" style={styles.inputIcon} />
+                        <TextInput
+                          style={[styles.input, styles.otpInput]}
+                          placeholder="123456"
+                          placeholderTextColor="#5C7268"
+                          keyboardType="number-pad"
+                          maxLength={6}
+                          value={resetOtp}
+                          onChangeText={setResetOtp}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>New Password</Text>
+                      <View style={styles.inputWrapper}>
+                        <Feather name="lock" size={18} color="#73AA87" style={styles.inputIcon} />
+                        <TextInput
+                          style={[styles.input, { flex: 1 }]}
+                          placeholder="At least 6 characters"
+                          placeholderTextColor="#5C7268"
+                          secureTextEntry={!showNewPassword}
+                          autoCapitalize="none"
+                          value={newPassword}
+                          onChangeText={setNewPassword}
+                        />
+                        <TouchableOpacity
+                          onPress={() => setShowNewPassword(!showNewPassword)}
+                          style={styles.eyeButton}
+                        >
+                          <Feather
+                            name={showNewPassword ? 'eye-off' : 'eye'}
+                            size={18}
+                            color="#73AA87"
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.inputLabel}>Confirm New Password</Text>
+                      <View style={styles.inputWrapper}>
+                        <Feather name="check-circle" size={18} color="#73AA87" style={styles.inputIcon} />
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Re-enter new password"
+                          placeholderTextColor="#5C7268"
+                          secureTextEntry={!showNewPassword}
+                          autoCapitalize="none"
+                          value={confirmNewPassword}
+                          onChangeText={setConfirmNewPassword}
+                        />
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                      onPress={handleConfirmResetPassword}
+                      disabled={loading}
+                      activeOpacity={0.85}
+                    >
+                      {loading ? (
+                        <ActivityIndicator color="#0C1B2F" size="small" />
+                      ) : (
+                        <>
+                          <Feather name="check" size={18} color="#0C1B2F" />
+                          <Text style={styles.submitButtonText}>Reset Password</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Resend OTP & Change Email Row */}
+                    <View style={styles.resendRow}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setForgotStep('request');
+                          setResetOtp('');
+                          setErrorMessage(null);
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.changeEmailLink}>Edit email</Text>
+                      </TouchableOpacity>
+
+                      {cooldownSeconds > 0 ? (
+                        <Text style={styles.resendTextDisabled}>
+                          Resend in {cooldownSeconds}s
+                        </Text>
+                      ) : (
+                        <TouchableOpacity
+                          onPress={handleRequestResetOtp}
+                          disabled={loading}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.resendLink}>Resend Code</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </>
+                )
+              ) : isRegister ? (
+                /* ================= REGISTER FLOW ================= */
                 <>
                   <View style={styles.inputGroup}>
                     <Text style={styles.inputLabel}>Username</Text>
@@ -194,87 +488,145 @@ export default function LoginScreen() {
                       />
                     </View>
                   </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Password</Text>
+                    <View style={styles.inputWrapper}>
+                      <Feather name="lock" size={18} color="#73AA87" style={styles.inputIcon} />
+                      <TextInput
+                        style={[styles.input, { flex: 1 }]}
+                        placeholder="Enter password"
+                        placeholderTextColor="#5C7268"
+                        secureTextEntry={!showPassword}
+                        autoCapitalize="none"
+                        value={password}
+                        onChangeText={setPassword}
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowPassword(!showPassword)}
+                        style={styles.eyeButton}
+                      >
+                        <Feather
+                          name={showPassword ? 'eye-off' : 'eye'}
+                          size={18}
+                          color="#73AA87"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Confirm Password</Text>
+                    <View style={styles.inputWrapper}>
+                      <Feather name="check-circle" size={18} color="#73AA87" style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Confirm password"
+                        placeholderTextColor="#5C7268"
+                        secureTextEntry={!showPassword}
+                        autoCapitalize="none"
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                      />
+                    </View>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                    onPress={handleSubmit}
+                    disabled={loading}
+                    activeOpacity={0.85}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#0C1B2F" size="small" />
+                    ) : (
+                      <>
+                        <Text style={styles.submitButtonText}>Create Account</Text>
+                        <Feather name="arrow-right" size={18} color="#0C1B2F" />
+                      </>
+                    )}
+                  </TouchableOpacity>
                 </>
               ) : (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Email or Username</Text>
-                  <View style={styles.inputWrapper}>
-                    <Feather name="user" size={18} color="#73AA87" style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Username or Email"
-                      placeholderTextColor="#5C7268"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      value={emailOrUser}
-                      onChangeText={setEmailOrUser}
-                    />
+                /* ================= SIGN IN FLOW ================= */
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Email or Username</Text>
+                    <View style={styles.inputWrapper}>
+                      <Feather name="user" size={18} color="#73AA87" style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Username or Email"
+                        placeholderTextColor="#5C7268"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        value={emailOrUser}
+                        onChangeText={setEmailOrUser}
+                      />
+                    </View>
                   </View>
-                </View>
-              )}
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Password</Text>
-                <View style={styles.inputWrapper}>
-                  <Feather name="lock" size={18} color="#73AA87" style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { flex: 1 }]}
-                    placeholder="Enter password"
-                    placeholderTextColor="#5C7268"
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                    value={password}
-                    onChangeText={setPassword}
-                  />
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Password</Text>
+                    <View style={styles.inputWrapper}>
+                      <Feather name="lock" size={18} color="#73AA87" style={styles.inputIcon} />
+                      <TextInput
+                        style={[styles.input, { flex: 1 }]}
+                        placeholder="Enter password"
+                        placeholderTextColor="#5C7268"
+                        secureTextEntry={!showPassword}
+                        autoCapitalize="none"
+                        value={password}
+                        onChangeText={setPassword}
+                      />
+                      <TouchableOpacity
+                        onPress={() => setShowPassword(!showPassword)}
+                        style={styles.eyeButton}
+                      >
+                        <Feather
+                          name={showPassword ? 'eye-off' : 'eye'}
+                          size={18}
+                          color="#73AA87"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Forgot Password Link */}
+                  <View style={styles.forgotPasswordRow}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setIsForgotPassword(true);
+                        setForgotStep('request');
+                        if (emailOrUser.includes('@')) {
+                          setResetEmail(emailOrUser.trim());
+                        }
+                        setErrorMessage(null);
+                        setSuccessMessage(null);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.forgotPasswordLink}>Forgot Password?</Text>
+                    </TouchableOpacity>
+                  </View>
+
                   <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
-                    style={styles.eyeButton}
+                    style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                    onPress={handleSubmit}
+                    disabled={loading}
+                    activeOpacity={0.85}
                   >
-                    <Feather
-                      name={showPassword ? 'eye-off' : 'eye'}
-                      size={18}
-                      color="#73AA87"
-                    />
+                    {loading ? (
+                      <ActivityIndicator color="#0C1B2F" size="small" />
+                    ) : (
+                      <>
+                        <Text style={styles.submitButtonText}>Sign In</Text>
+                        <Feather name="arrow-right" size={18} color="#0C1B2F" />
+                      </>
+                    )}
                   </TouchableOpacity>
-                </View>
-              </View>
-
-              {isRegister && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Confirm Password</Text>
-                  <View style={styles.inputWrapper}>
-                    <Feather name="check-circle" size={18} color="#73AA87" style={styles.inputIcon} />
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Confirm password"
-                      placeholderTextColor="#5C7268"
-                      secureTextEntry={!showPassword}
-                      autoCapitalize="none"
-                      value={confirmPassword}
-                      onChangeText={setConfirmPassword}
-                    />
-                  </View>
-                </View>
+                </>
               )}
-
-              {/* Submit Button */}
-              <TouchableOpacity
-                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-                onPress={handleSubmit}
-                disabled={loading}
-                activeOpacity={0.85}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#0C1B2F" size="small" />
-                ) : (
-                  <>
-                    <Text style={styles.submitButtonText}>
-                      {isRegister ? 'Create Account' : 'Sign In'}
-                    </Text>
-                    <Feather name="arrow-right" size={18} color="#0C1B2F" />
-                  </>
-                )}
-              </TouchableOpacity>
             </View>
 
             {/* Guest Access Alternative */}
@@ -471,5 +823,76 @@ const styles = StyleSheet.create({
     color: '#73AA87',
     fontSize: 14,
     fontWeight: '600',
+  },
+  forgotPasswordRow: {
+    alignItems: 'flex-end',
+    marginTop: -4,
+    marginBottom: 16,
+    paddingHorizontal: 2,
+  },
+  forgotPasswordLink: {
+    color: '#73AA87',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  backButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginBottom: 14,
+    gap: 8,
+  },
+  backButtonText: {
+    color: '#73AA87',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  successCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(115, 170, 135, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(115, 170, 135, 0.4)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 16,
+    width: '100%',
+  },
+  successIcon: {
+    marginRight: 8,
+  },
+  successText: {
+    color: '#73AA87',
+    fontSize: 13,
+    flex: 1,
+  },
+  otpInput: {
+    letterSpacing: 8,
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  resendRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingHorizontal: 4,
+  },
+  resendTextDisabled: {
+    color: '#5C7268',
+    fontSize: 13,
+  },
+  resendLink: {
+    color: '#73AA87',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  changeEmailLink: {
+    color: '#8A9E96',
+    fontSize: 13,
   },
 });

@@ -162,6 +162,38 @@ class ApiClient {
     }
   }
 
+  public async forgotPassword(
+    email: string
+  ): Promise<{ success: boolean; message?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      return await this.safeParseJson(res);
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Network error requesting password reset' };
+    }
+  }
+
+  public async resetPassword(
+    email: string,
+    otp: string,
+    newPassword: string
+  ): Promise<{ success: boolean; message?: string }> {
+    try {
+      const res = await fetch(`${this.baseUrl}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp, newPassword }),
+      });
+      return await this.safeParseJson(res);
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Network error resetting password' };
+    }
+  }
+
   // 1. Health Check
   public async checkHealth(): Promise<{ status: string; database?: any; message?: string }> {
     try {

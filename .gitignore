@@ -8,3 +8,4 @@ web-build/
 .env
 __pycache__/
 *.pyc
+.vercel
