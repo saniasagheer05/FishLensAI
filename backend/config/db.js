@@ -185,7 +185,9 @@ const query = async (text, params = []) => {
       isPgAvailable = true;
       return res;
     } catch (err) {
-      if (err.code === '28P01' || err.code === 'ECONNREFUSED' || err.code === '3D000') {
+      const connErrCodes = ['28P01', 'ECONNREFUSED', '3D000', 'ENOTFOUND', 'ETIMEDOUT', 'ECONNRESET', 'ENETUNREACH', 'EAI_AGAIN'];
+      if (connErrCodes.includes(err.code) || (err.message && (err.message.includes('connect') || err.message.includes('timeout') || err.message.includes('ENOTFOUND')))) {
+        console.warn(`[PostgreSQL] Connection interrupted (${err.code || err.message}). Switching to standby store.`);
         isPgAvailable = false;
       } else {
         throw err;

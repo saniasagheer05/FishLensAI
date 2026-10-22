@@ -37,7 +37,7 @@ export default function CameraScanScreen() {
     try {
       if (cameraRef.current && Platform.OS !== 'web') {
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.85,
+          quality: 0.75,
           skipProcessing: false,
         });
         if (photo?.uri) {
@@ -65,7 +65,7 @@ export default function CameraScanScreen() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.9,
+        quality: 0.75,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
