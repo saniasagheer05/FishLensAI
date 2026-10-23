@@ -210,6 +210,30 @@ async function initializeDatabase() {
       ]);
     }
     console.log(`[DB Init] Successfully seeded ${initialSpecies.length} fish species.`);
+
+    // Step 4: Ensure default verified test user exists
+    const bcrypt = require('bcryptjs');
+    const testUsername = 'testuser';
+    const testEmail = 'testuser@fishlensai.app';
+    const testPassword = 'Password123!';
+
+    const checkRes = await appPool.query(
+      'SELECT id FROM users WHERE LOWER(username) = $1 OR LOWER(email) = $2',
+      [testUsername, testEmail]
+    );
+
+    if (checkRes.rowCount === 0) {
+      const salt = await bcrypt.genSalt(10);
+      const hash = await bcrypt.hash(testPassword, salt);
+      await appPool.query(
+        'INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3)',
+        [testUsername, testEmail, hash]
+      );
+      console.log(`[DB Init] Seeded verified test user: ${testUsername} / ${testEmail}`);
+    } else {
+      console.log(`[DB Init] Verified test user "${testUsername}" is active.`);
+    }
+
     console.log('[DB Init] Database initialization complete!');
   } catch (err) {
     console.error('[DB Init] Error during database initialization:', err);

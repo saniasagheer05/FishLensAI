@@ -25,9 +25,19 @@ const pool = new Pool(poolConfig);
 
 let isPgAvailable = null;
 
+const bcrypt = require('bcryptjs');
+
 // Fallback in-memory storage when PostgreSQL authentication is pending
 const inMemoryDb = {
-  users: [],
+  users: [
+    {
+      id: 1,
+      username: 'testuser',
+      email: 'testuser@fishlensai.app',
+      password_hash: bcrypt.hashSync('Password123!', 10),
+      created_at: new Date().toISOString(),
+    },
+  ],
   password_resets: [],
   fish_species: [
     {
@@ -212,10 +222,13 @@ const query = async (text, params = []) => {
     return { rows: [user], rowCount: 1 };
   }
 
-  // Users select by email or username
-  if (sql.includes('FROM users WHERE email = $1 OR username = $2')) {
-    const [email, username] = params;
-    const found = inMemoryDb.users.filter(u => u.email === email || u.username === username);
+  // Users select by email or username (case-insensitive login & lookup)
+  if (sql.includes('FROM users') && (sql.includes('LOWER(email) = $1 OR LOWER(username) = $1') || sql.includes('WHERE email = $1 OR username = $2'))) {
+    const cleanId = (params[0] || '').toString().toLowerCase();
+    const found = inMemoryDb.users.filter(u => 
+      u.email.toLowerCase() === cleanId || 
+      u.username.toLowerCase() === cleanId
+    );
     return { rows: found, rowCount: found.length };
   }
 

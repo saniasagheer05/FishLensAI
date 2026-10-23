@@ -55,11 +55,11 @@ function createTransporter() {
 }
 
 /**
- * Checks email configuration and returns non-sensitive status.
+ * Checks email configuration and returns non-sensitive status along with live provider diagnostics.
  */
 async function getServiceStatus() {
-  const brevoKey = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
-  const resendKey = process.env.RESEND_API_KEY;
+  const brevoKey = (process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY || '').trim();
+  const resendKey = (process.env.RESEND_API_KEY || '').trim();
   const user = (process.env.GMAIL_USER || process.env.SMTP_USER || process.env.EMAIL_USER || '').trim();
   const pass = (process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || process.env.EMAIL_PASSWORD || '').trim();
 
@@ -72,6 +72,44 @@ async function getServiceStatus() {
   else if (hasResend) activeProvider = 'resend_https';
   else if (hasSmtp) activeProvider = 'gmail_smtp';
 
+  let brevoInfo = null;
+  if (hasBrevo && globalThis.fetch) {
+    try {
+      const [accRes, sendersRes, eventsRes] = await Promise.all([
+        globalThis.fetch('https://api.brevo.com/v3/account', {
+          headers: { 'accept': 'application/json', 'api-key': brevoKey }
+        }).then(r => r.json()).catch(e => ({ error: e.message })),
+
+        globalThis.fetch('https://api.brevo.com/v3/senders', {
+          headers: { 'accept': 'application/json', 'api-key': brevoKey }
+        }).then(r => r.json()).catch(e => ({ error: e.message })),
+
+        globalThis.fetch('https://api.brevo.com/v3/smtp/statistics/events?limit=5', {
+          headers: { 'accept': 'application/json', 'api-key': brevoKey }
+        }).then(r => r.json()).catch(e => ({ error: e.message })),
+      ]);
+
+      brevoInfo = {
+        accountEmail: accRes.email ? maskEmail(accRes.email) : (accRes.message || 'unknown'),
+        plan: accRes.plan?.[0]?.type || 'free',
+        credits: accRes.plan?.[0]?.credits !== undefined ? accRes.plan[0].credits : null,
+        senders: (sendersRes.senders || []).map(s => ({
+          name: s.name,
+          email: maskEmail(s.email),
+          active: s.active,
+        })),
+        recentEvents: (eventsRes.events || []).map(ev => ({
+          event: ev.event,
+          email: maskEmail(ev.email),
+          date: ev.date,
+          reason: ev.reason || null,
+        })),
+      };
+    } catch (e) {
+      brevoInfo = { fetchError: e.message };
+    }
+  }
+
   return {
     configured: hasBrevo || hasResend || hasSmtp,
     activeProvider,
@@ -81,6 +119,7 @@ async function getServiceStatus() {
       gmailSmtp: hasSmtp,
     },
     senderEmail: hasSmtp || hasBrevo ? maskEmail(user || 'no-reply@fishlensai.app') : null,
+    brevoDiagnostics: brevoInfo,
   };
 }
 
@@ -90,12 +129,36 @@ async function getServiceStatus() {
  */
 async function sendViaBrevo({ toEmail, subject, htmlContent, textContent, displayName }) {
   const apiKey = (process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY || '').trim();
-  const senderEmail = (process.env.GMAIL_USER || process.env.SMTP_USER || 'no-reply@fishlensai.app').trim();
+  const configuredSender = (process.env.BREVO_SENDER_EMAIL || process.env.GMAIL_USER || process.env.SMTP_USER || 'no-reply@fishlensai.app').trim();
   const senderName = process.env.SENDER_NAME || 'FishLens AI';
 
   const fetchFn = globalThis.fetch;
   if (!fetchFn) {
     throw new Error('Native fetch is not available in this Node runtime');
+  }
+
+  // Check verified senders in the Brevo account to ensure 100% deliverability
+  let finalSenderEmail = configuredSender;
+  try {
+    const sendersRes = await fetchFn('https://api.brevo.com/v3/senders', {
+      headers: { 'accept': 'application/json', 'api-key': apiKey },
+    });
+    if (sendersRes.ok) {
+      const sendersData = await sendersRes.json();
+      const activeSenders = (sendersData.senders || []).filter(s => s.active);
+      if (activeSenders.length > 0) {
+        const exactMatch = activeSenders.find(s => s.email.toLowerCase() === configuredSender.toLowerCase());
+        if (exactMatch) {
+          finalSenderEmail = exactMatch.email;
+        } else {
+          // If configured sender is not in the Brevo account senders, use the account's active verified sender
+          finalSenderEmail = activeSenders[0].email;
+          console.log(`[EmailService] Configured sender (${maskEmail(configuredSender)}) not in Brevo verified senders list. Using active Brevo sender: ${maskEmail(finalSenderEmail)}`);
+        }
+      }
+    }
+  } catch (senderErr) {
+    console.warn(`[EmailService] Notice checking Brevo senders:`, senderErr.message);
   }
 
   const response = await fetchFn('https://api.brevo.com/v3/smtp/email', {
@@ -106,8 +169,9 @@ async function sendViaBrevo({ toEmail, subject, htmlContent, textContent, displa
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      sender: { name: senderName, email: senderEmail },
+      sender: { name: senderName, email: finalSenderEmail },
       to: [{ email: toEmail, name: displayName }],
+      replyTo: { email: finalSenderEmail, name: senderName },
       subject,
       htmlContent,
       textContent,
