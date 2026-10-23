@@ -1,3 +1,5 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const nodemailer = require('nodemailer');
 
 let lastSentOtp = null;
@@ -7,42 +9,179 @@ function getLastSentOtp() {
 }
 
 /**
+ * Masks an email for safe logging (e.g., saniasagheer9@gmail.com -> s***9@gmail.com).
+ * Never exposes complete email or any credentials.
+ */
+function maskEmail(email) {
+  if (!email || typeof email !== 'string') return 'unknown';
+  const parts = email.split('@');
+  if (parts.length !== 2) return '***';
+  const name = parts[0];
+  const domain = parts[1];
+  const maskedName = name.length <= 2 
+    ? `${name[0]}***` 
+    : `${name[0]}***${name[name.length - 1]}`;
+  return `${maskedName}@${domain}`;
+}
+
+/**
  * Creates and returns a nodemailer transporter configured for Gmail SMTP.
- * Credentials are read from environment variables:
+ * Credentials:
  * - GMAIL_USER / SMTP_USER / EMAIL_USER
  * - GMAIL_APP_PASSWORD / SMTP_PASS / EMAIL_PASSWORD
  */
 function createTransporter() {
-  const user = process.env.GMAIL_USER || process.env.SMTP_USER || process.env.EMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || process.env.EMAIL_PASSWORD;
+  const user = (process.env.GMAIL_USER || process.env.SMTP_USER || process.env.EMAIL_USER || '').trim();
+  const rawPass = (process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || process.env.EMAIL_PASSWORD || '').trim();
+  const pass = rawPass.replace(/\s+/g, ''); // Strip spaces from Gmail app passwords
 
-  // Check if credentials are placeholders or missing
   if (!user || !pass || user.includes('your_gmail') || pass.includes('your_16_character')) {
     return null;
   }
 
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const port = parseInt(process.env.SMTP_PORT || '465', 10);
+  const secure = port === 465;
+
   return nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: user.trim(),
-      pass: pass.trim().replace(/\s+/g, ''), // Strip spaces from Gmail app passwords
-    },
-    connectionTimeout: 8000,
-    greetingTimeout: 8000,
-    socketTimeout: 10000,
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+    connectionTimeout: 7000,
+    greetingTimeout: 7000,
+    socketTimeout: 9000,
   });
 }
 
 /**
- * Sends a single-use password reset OTP email using Gmail SMTP.
- * If credentials are not yet configured in local development, it logs the OTP
- * to the server console so developers can test the complete flow immediately.
+ * Checks email configuration and returns non-sensitive status.
+ */
+async function getServiceStatus() {
+  const brevoKey = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
+  const resendKey = process.env.RESEND_API_KEY;
+  const user = (process.env.GMAIL_USER || process.env.SMTP_USER || process.env.EMAIL_USER || '').trim();
+  const pass = (process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || process.env.EMAIL_PASSWORD || '').trim();
+
+  const hasBrevo = Boolean(brevoKey && !brevoKey.includes('your_'));
+  const hasResend = Boolean(resendKey && !resendKey.includes('your_'));
+  const hasSmtp = Boolean(user && pass && !user.includes('your_') && !pass.includes('your_'));
+
+  let activeProvider = 'none';
+  if (hasBrevo) activeProvider = 'brevo_https';
+  else if (hasResend) activeProvider = 'resend_https';
+  else if (hasSmtp) activeProvider = 'gmail_smtp';
+
+  return {
+    configured: hasBrevo || hasResend || hasSmtp,
+    activeProvider,
+    providers: {
+      brevoHttps: hasBrevo,
+      resendHttps: hasResend,
+      gmailSmtp: hasSmtp,
+    },
+    senderEmail: hasSmtp || hasBrevo ? maskEmail(user || 'no-reply@fishlensai.app') : null,
+  };
+}
+
+/**
+ * Sends email via Brevo REST API over HTTPS (Port 443).
+ * Immune to cloud host SMTP port blocking (Render Free Tier blocks ports 25, 465, 587).
+ */
+async function sendViaBrevo({ toEmail, subject, htmlContent, textContent, displayName }) {
+  const apiKey = (process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY || '').trim();
+  const senderEmail = (process.env.GMAIL_USER || process.env.SMTP_USER || 'no-reply@fishlensai.app').trim();
+  const senderName = process.env.SENDER_NAME || 'FishLens AI';
+
+  const fetchFn = globalThis.fetch;
+  if (!fetchFn) {
+    throw new Error('Native fetch is not available in this Node runtime');
+  }
+
+  const response = await fetchFn('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'api-key': apiKey,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: senderName, email: senderEmail },
+      to: [{ email: toEmail, name: displayName }],
+      subject,
+      htmlContent,
+      textContent,
+    }),
+  });
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorMsg = body.message || `HTTP ${response.status} ${response.statusText}`;
+    throw new Error(`Brevo HTTP delivery failed: ${errorMsg}`);
+  }
+
+  return {
+    success: true,
+    mode: 'brevo_https',
+    messageId: body.messageId || 'brevo-queued',
+  };
+}
+
+/**
+ * Sends email via Resend REST API over HTTPS (Port 443).
+ */
+async function sendViaResend({ toEmail, subject, htmlContent, textContent }) {
+  const apiKey = (process.env.RESEND_API_KEY || '').trim();
+  const sender = (process.env.RESEND_FROM || 'FishLens AI <onboarding@resend.dev>').trim();
+
+  const fetchFn = globalThis.fetch;
+  if (!fetchFn) {
+    throw new Error('Native fetch is not available in this Node runtime');
+  }
+
+  const response = await fetchFn('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: sender,
+      to: [toEmail],
+      subject,
+      html: htmlContent,
+      text: textContent,
+    }),
+  });
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorMsg = body.message || `HTTP ${response.status} ${response.statusText}`;
+    throw new Error(`Resend HTTP delivery failed: ${errorMsg}`);
+  }
+
+  return {
+    success: true,
+    mode: 'resend_https',
+    messageId: body.id || 'resend-queued',
+  };
+}
+
+/**
+ * Sends a single-use password reset OTP email.
+ * Multi-transport delivery:
+ * 1. Brevo HTTPS API (Port 443, Render Free Tier friendly)
+ * 2. Resend HTTPS API (Port 443)
+ * 3. Gmail SMTP / Nodemailer (Port 465 / 587)
+ * 4. Dev mock (non-production fallback)
  */
 async function sendPasswordResetOtp({ toEmail, otpCode, username }) {
   lastSentOtp = { toEmail, otpCode, timestamp: new Date() };
-  const transporter = createTransporter();
-  const senderEmail = process.env.GMAIL_USER || process.env.SMTP_USER || 'no-reply@fishlensai.app';
+
+  const masked = maskEmail(toEmail);
   const displayName = username || 'FishLensAI User';
+  const senderEmail = (process.env.GMAIL_USER || process.env.SMTP_USER || 'no-reply@fishlensai.app').trim();
+  const subject = `Your FishLensAI Password Reset Code: ${otpCode}`;
 
   const htmlContent = `
 <!DOCTYPE html>
@@ -122,7 +261,7 @@ async function sendPasswordResetOtp({ toEmail, otpCode, username }) {
   </table>
 </body>
 </html>
-  `;
+  `.trim();
 
   const textContent = `
 FishLens AI - Password Reset Code
@@ -141,41 +280,73 @@ If you did not request a password reset, please ignore this email. Your account 
 FishLensAI Security Team
   `.trim();
 
-  // If Gmail SMTP credentials are configured, send the real email
+  // 1. Try Brevo HTTPS API first (Preferred on cloud hosts like Render Free Tier)
+  const brevoKey = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
+  if (brevoKey && !brevoKey.includes('your_')) {
+    try {
+      const result = await sendViaBrevo({ toEmail, subject, htmlContent, textContent, displayName });
+      console.log(`[EmailService] Password reset email sent via Brevo HTTPS to ${masked}`);
+      return result;
+    } catch (brevoErr) {
+      console.error(`[EmailService] Brevo HTTPS delivery failed:`, brevoErr.message);
+      // Fall through to next available provider
+    }
+  }
+
+  // 2. Try Resend HTTPS API next
+  const resendKey = process.env.RESEND_API_KEY;
+  if (resendKey && !resendKey.includes('your_')) {
+    try {
+      const result = await sendViaResend({ toEmail, subject, htmlContent, textContent });
+      console.log(`[EmailService] Password reset email sent via Resend HTTPS to ${masked}`);
+      return result;
+    } catch (resendErr) {
+      console.error(`[EmailService] Resend HTTPS delivery failed:`, resendErr.message);
+      // Fall through to next available provider
+    }
+  }
+
+  // 3. Try Gmail SMTP / Nodemailer
+  const transporter = createTransporter();
   if (transporter) {
     try {
       const info = await transporter.sendMail({
         from: `"FishLens AI" <${senderEmail}>`,
         to: toEmail,
-        subject: `Your FishLensAI Password Reset Code: ${otpCode}`,
+        subject,
         text: textContent,
         html: htmlContent,
       });
 
-      console.log(`[EmailService] Password reset email sent successfully to ${toEmail}. MessageId: ${info.messageId}`);
+      console.log(`[EmailService] Password reset email sent via Gmail SMTP to ${masked}`);
       return { success: true, mode: 'smtp', messageId: info.messageId };
     } catch (error) {
-      console.error(`[EmailService] Gmail SMTP error sending to ${toEmail}:`, error.message);
-      throw new Error(`Failed to send email via Gmail SMTP: ${error.message}`);
+      const isBlocked = error.code === 'ETIMEDOUT' || error.code === 'ECONNREFUSED' || error.message.includes('timeout');
+      let friendlyError = error.message;
+      if (isBlocked) {
+        friendlyError = `Outbound SMTP timeout (${error.code || 'ETIMEDOUT'}). Render Free Tier blocks outbound SMTP ports 25, 465, and 587. To send emails on Render Free Tier, please add a free BREVO_API_KEY to Render Environment Variables.`;
+      }
+      console.error(`[EmailService] Gmail SMTP delivery error:`, friendlyError);
+      throw new Error(`Email delivery failed: ${friendlyError}`);
     }
   }
 
-  // Fallback when Gmail SMTP credentials are not configured in environment
+  // 4. Missing Credentials in Production: Never claim false success
   if (process.env.NODE_ENV === 'production') {
-    console.warn(`[EmailService] Password reset requested for ${toEmail}, but GMAIL_USER / GMAIL_APP_PASSWORD are not configured in environment variables. Email cannot be delivered.`);
+    const errorMsg = 'Email service is not configured on the server. Please configure GMAIL_USER/GMAIL_APP_PASSWORD or BREVO_API_KEY in server environment.';
+    console.error(`[EmailService] ${errorMsg}`);
     return {
       success: false,
       mode: 'missing_credentials',
-      message: 'Email service is not configured on the server. Please contact support.',
+      message: errorMsg,
     };
   }
 
-  // Development / Test only: Log OTP to console for local developer testing
+  // 5. Development / Test Only Fallback
   console.log('=================================================================');
-  console.log('[EmailService (DEV FALLBACK)] GMAIL_USER / GMAIL_APP_PASSWORD not set in backend/.env');
-  console.log(`[EmailService (DEV FALLBACK)] Password reset OTP for: ${toEmail}`);
-  console.log(`[EmailService (DEV FALLBACK)] ===> OTP CODE: ${otpCode} <===`);
-  console.log('[EmailService (DEV FALLBACK)] Set GMAIL_USER and GMAIL_APP_PASSWORD in backend/.env for live email delivery.');
+  console.log('[EmailService (DEV FALLBACK)] No live email provider configured.');
+  console.log(`[EmailService (DEV FALLBACK)] Target recipient: ${masked}`);
+  console.log(`[EmailService (DEV FALLBACK)] Set GMAIL_USER and GMAIL_APP_PASSWORD in backend/.env for live delivery.`);
   console.log('=================================================================');
 
   return { success: true, mode: 'dev_mock', otpCode };
@@ -185,4 +356,6 @@ module.exports = {
   createTransporter,
   sendPasswordResetOtp,
   getLastSentOtp,
+  getServiceStatus,
+  maskEmail,
 };

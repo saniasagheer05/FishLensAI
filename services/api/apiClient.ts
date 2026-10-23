@@ -213,7 +213,7 @@ class ApiClient {
 
   public async forgotPassword(
     email: string
-  ): Promise<{ success: boolean; message?: string }> {
+  ): Promise<{ success: boolean; emailSent?: boolean; message?: string }> {
     try {
       const res = await this.fetchWithTimeout(`${this.baseUrl}/auth/forgot-password`, {
         method: 'POST',

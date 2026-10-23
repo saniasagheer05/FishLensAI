@@ -220,14 +220,14 @@ const query = async (text, params = []) => {
   }
 
   // Users select by email (case-insensitive)
-  if (sql.includes('FROM users') && (sql.includes('LOWER(email) = LOWER($1)') || sql.includes('email = $1'))) {
+  if (sql.includes('FROM users') && (sql.includes('LOWER(email) = LOWER($1)') || sql.includes('email = $1') || sql.includes('LOWER(email) = $1'))) {
     const [email] = params;
     const found = inMemoryDb.users.filter(u => u.email.toLowerCase() === (email || '').toLowerCase());
     return { rows: found, rowCount: found.length };
   }
 
   // Users update password hash by email
-  if (sql.startsWith('UPDATE users SET password_hash = $1') && (sql.includes('LOWER(email) = LOWER($2)') || sql.includes('email = $2'))) {
+  if (sql.startsWith('UPDATE users SET password_hash = $1') && (sql.includes('LOWER(email) = LOWER($2)') || sql.includes('email = $2') || sql.includes('LOWER(email) = $2'))) {
     const [password_hash, email] = params;
     let updatedCount = 0;
     inMemoryDb.users = inMemoryDb.users.map(u => {
@@ -255,7 +255,7 @@ const query = async (text, params = []) => {
   }
 
   // Invalidate old password resets for email
-  if (sql.startsWith('UPDATE password_resets SET used = TRUE') && sql.includes('LOWER(email) = LOWER($1)')) {
+  if (sql.startsWith('UPDATE password_resets SET used = TRUE') && (sql.includes('email) = LOWER($1)') || sql.includes('email) = $1') || sql.includes('email = $1'))) {
     const [email] = params;
     let count = 0;
     inMemoryDb.password_resets = inMemoryDb.password_resets.map(r => {

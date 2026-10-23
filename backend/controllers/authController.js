@@ -169,7 +169,7 @@ exports.requestPasswordReset = async (req, res, next) => {
     const rateCheck = await query(
       `SELECT COUNT(*) as recent_count, MAX(created_at) as last_request_at
        FROM password_resets
-       WHERE LOWER(email) = LOWER($1) AND created_at > (CURRENT_TIMESTAMP - INTERVAL '15 minutes')`,
+       WHERE LOWER(email) = $1 AND created_at > (CURRENT_TIMESTAMP - INTERVAL '15 minutes')`,
       [cleanEmail]
     );
 
@@ -179,6 +179,7 @@ exports.requestPasswordReset = async (req, res, next) => {
     if (recentCount >= 3) {
       return res.status(429).json({
         success: false,
+        emailSent: false,
         message: 'Too many password reset requests for this email. Please wait 15 minutes before trying again.',
       });
     }
@@ -189,6 +190,7 @@ exports.requestPasswordReset = async (req, res, next) => {
         const remainingSec = Math.ceil((60000 - elapsedMs) / 1000);
         return res.status(429).json({
           success: false,
+          emailSent: false,
           message: `Please wait ${remainingSec} seconds before requesting another reset code.`,
         });
       }
@@ -196,7 +198,7 @@ exports.requestPasswordReset = async (req, res, next) => {
 
     // 2. Check if user exists in the database
     const userResult = await query(
-      'SELECT id, username, email FROM users WHERE LOWER(email) = LOWER($1)',
+      'SELECT id, username, email FROM users WHERE LOWER(email) = $1',
       [cleanEmail]
     );
 
@@ -204,9 +206,11 @@ exports.requestPasswordReset = async (req, res, next) => {
     const genericSuccessMessage = 'If an account with that email exists, a password reset code has been sent.';
 
     if (userResult.rows.length === 0) {
-      // Do not reveal that the email does not exist; return generic success
+      // Return anti-enumeration response, but explicitly mark emailSent: false
+      // so client UI does not falsely transition to OTP entry screen
       return res.json({
         success: true,
+        emailSent: false,
         message: genericSuccessMessage,
       });
     }
@@ -226,7 +230,7 @@ exports.requestPasswordReset = async (req, res, next) => {
 
     // 5. Invalidate any existing unused reset codes for this email
     await query(
-      'UPDATE password_resets SET used = TRUE WHERE LOWER(email) = LOWER($1) AND used = FALSE',
+      'UPDATE password_resets SET used = TRUE WHERE LOWER(email) = $1 AND used = FALSE',
       [cleanEmail]
     );
 
@@ -237,31 +241,37 @@ exports.requestPasswordReset = async (req, res, next) => {
       [cleanEmail, otpHash, token, expiresAt]
     );
 
-    // 7. Send the email via Gmail SMTP (or fallback dev mode)
+    // 7. Send the email via configured email service
     try {
       const emailResult = await emailService.sendPasswordResetOtp({
         toEmail: user.email,
         otpCode: otp,
         username: user.username,
       });
-      if (emailResult && emailResult.success === false) {
+
+      if (!emailResult || emailResult.success === false) {
         return res.status(503).json({
           success: false,
-          message: emailResult.message || 'Email delivery service is currently unavailable. Please contact support.',
+          emailSent: false,
+          message: emailResult?.message || 'Email delivery service is currently unavailable. Please contact support.',
         });
       }
+
+      return res.json({
+        success: true,
+        emailSent: true,
+        mode: emailResult.mode,
+        message: 'A single-use 6-digit verification code has been sent to your email address.',
+      });
     } catch (emailErr) {
       console.error('[requestPasswordReset Email Error]:', emailErr.message);
       return res.status(500).json({
         success: false,
-        message: 'Failed to send password reset email. Please try again later.',
+        emailSent: false,
+        message: emailErr.message || 'Failed to send password reset email. Please try again later.',
+        error: emailErr.message,
       });
     }
-
-    return res.json({
-      success: true,
-      message: genericSuccessMessage,
-    });
   } catch (error) {
     next(error);
   }
@@ -295,7 +305,7 @@ exports.resetPassword = async (req, res, next) => {
     const resetResult = await query(
       `SELECT id, email, otp_hash, token, expires_at, used
        FROM password_resets
-       WHERE LOWER(email) = LOWER($1) AND used = FALSE AND expires_at > CURRENT_TIMESTAMP
+       WHERE LOWER(email) = $1 AND used = FALSE AND expires_at > CURRENT_TIMESTAMP
        ORDER BY created_at DESC
        LIMIT 1`,
       [cleanEmail]
@@ -326,13 +336,13 @@ exports.resetPassword = async (req, res, next) => {
 
     // 4. Update the user password in the users table
     await query(
-      'UPDATE users SET password_hash = $1 WHERE LOWER(email) = LOWER($2)',
+      'UPDATE users SET password_hash = $1 WHERE LOWER(email) = $2',
       [newPasswordHash, cleanEmail]
     );
 
     // 5. Invalidate all reset codes for this email (single-use guarantee)
     await query(
-      'UPDATE password_resets SET used = TRUE WHERE LOWER(email) = LOWER($1)',
+      'UPDATE password_resets SET used = TRUE WHERE LOWER(email) = $1',
       [cleanEmail]
     );
 
@@ -341,6 +351,21 @@ exports.resetPassword = async (req, res, next) => {
     return res.json({
       success: true,
       message: 'Your password has been reset successfully. You can now log in with your new password.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Diagnostic endpoint to report active email service configuration (safe: no secrets exposed).
+ */
+exports.getEmailStatus = async (req, res, next) => {
+  try {
+    const status = await emailService.getServiceStatus();
+    return res.json({
+      success: true,
+      data: status,
     });
   } catch (error) {
     next(error);

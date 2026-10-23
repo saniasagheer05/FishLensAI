@@ -70,10 +70,15 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const result = await apiClient.forgotPassword(targetEmail);
-      if (result.success) {
+      if (result.success && result.emailSent !== false) {
         setSuccessMessage('A single-use 6-digit verification code has been sent to your email.');
         setForgotStep('verify');
         setCooldownSeconds(60);
+      } else if (result.success && result.emailSent === false) {
+        setErrorMessage(
+          result.message ||
+            'If this email is registered, a code has been sent. If you do not receive an email, please verify your email spelling or create an account.'
+        );
       } else {
         setErrorMessage(result.message || 'Unable to send password reset code. Please try again.');
       }
