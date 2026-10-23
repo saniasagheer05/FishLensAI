@@ -309,14 +309,22 @@ const query = async (text, params = []) => {
     return { rows: [record], rowCount: 1 };
   }
 
-  // Fetch active password reset by email
+  // Fetch active password resets by email (sorted id DESC)
   if (sql.includes('FROM password_resets') && sql.includes('used = FALSE')) {
     const [email] = params;
-    const now = new Date();
     const active = inMemoryDb.password_resets
-      .filter(r => r.email.toLowerCase() === (email || '').toLowerCase() && !r.used && new Date(r.expires_at) > now)
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    return { rows: active.slice(0, 1), rowCount: active.length > 0 ? 1 : 0 };
+      .filter(r => r.email.toLowerCase() === (email || '').toLowerCase() && !r.used)
+      .sort((a, b) => b.id - a.id);
+    return { rows: active, rowCount: active.length };
+  }
+
+  // Fetch any password reset records by email (to inspect used/expired state)
+  if (sql.includes('FROM password_resets') && !sql.includes('used = FALSE') && !sql.includes('COUNT(*)')) {
+    const [email] = params;
+    const records = inMemoryDb.password_resets
+      .filter(r => r.email.toLowerCase() === (email || '').toLowerCase())
+      .sort((a, b) => b.id - a.id);
+    return { rows: records, rowCount: records.length };
   }
 
   // Users select by id

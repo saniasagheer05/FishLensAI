@@ -179,7 +179,7 @@ exports.requestPasswordReset = async (req, res, next) => {
     const recentCount = parseInt(rateCheck.rows[0]?.recent_count || '0', 10);
     const lastRequestAt = rateCheck.rows[0]?.last_request_at;
 
-    if (recentCount >= 3) {
+    if (recentCount >= 5) {
       return res.status(429).json({
         success: false,
         emailSent: false,
@@ -228,23 +228,17 @@ exports.requestPasswordReset = async (req, res, next) => {
     const salt = await bcrypt.genSalt(10);
     const otpHash = await bcrypt.hash(otp, salt);
 
-    // Expiry: 15 minutes from now
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+    // Expiry: 15 minutes from now (ISO 8601 UTC string for timezone-independent persistence)
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
-    // 5. Invalidate any existing unused reset codes for this email
-    await query(
-      'UPDATE password_resets SET used = TRUE WHERE LOWER(email) = $1 AND used = FALSE',
-      [cleanEmail]
-    );
-
-    // 6. Store in database
+    // 5. Store new reset record in database (Do NOT eagerly invalidate previous codes - allows resends to work reliably without invalidating in-flight emails)
     await query(
       `INSERT INTO password_resets (email, otp_hash, token, expires_at)
        VALUES ($1, $2, $3, $4)`,
       [cleanEmail, otpHash, token, expiresAt]
     );
 
-    // 7. Send the email via configured email service
+    // 6. Send the email via configured email service
     try {
       const emailResult = await emailService.sendPasswordResetOtp({
         toEmail: user.email,
@@ -304,29 +298,62 @@ exports.resetPassword = async (req, res, next) => {
       });
     }
 
-    // 1. Fetch the latest active, non-expired reset code for this email
-    const resetResult = await query(
-      `SELECT id, email, otp_hash, token, expires_at, used
+    // 1. Fetch all active (unused) reset codes for this email, ordered newest first
+    const activeResult = await query(
+      `SELECT id, email, otp_hash, token, expires_at, used, created_at
        FROM password_resets
-       WHERE LOWER(email) = $1 AND used = FALSE AND expires_at > CURRENT_TIMESTAMP
-       ORDER BY created_at DESC
-       LIMIT 1`,
+       WHERE LOWER(email) = $1 AND used = FALSE
+       ORDER BY id DESC`,
       [cleanEmail]
     );
 
-    if (resetResult.rows.length === 0) {
+    // If no active codes exist, inspect if previous codes existed to provide specific feedback
+    if (activeResult.rows.length === 0) {
+      const anyResult = await query(
+        `SELECT id, used FROM password_resets WHERE LOWER(email) = $1 ORDER BY id DESC LIMIT 1`,
+        [cleanEmail]
+      );
+
+      if (anyResult.rows.length > 0 && anyResult.rows[0].used) {
+        return res.status(400).json({
+          success: false,
+          message: 'This verification code has already been used. Please request a new one.',
+        });
+      }
+
       return res.status(400).json({
         success: false,
         message: 'Invalid or expired password reset code. Please request a new one.',
       });
     }
 
-    const resetRecord = resetResult.rows[0];
+    // 2. Iterate through active codes to find a match that has not expired
+    const nowMs = Date.now();
+    let matchedRecord = null;
+    let anyExpiredMatch = false;
 
-    // 2. Verify the submitted OTP against the stored bcrypt hash
-    const isOtpValid = await bcrypt.compare(cleanOtp, resetRecord.otp_hash);
+    for (const record of activeResult.rows) {
+      const isExpired = nowMs > new Date(record.expires_at).getTime();
 
-    if (!isOtpValid) {
+      // Check if the OTP matches this record's bcrypt hash
+      const isMatch = await bcrypt.compare(cleanOtp, record.otp_hash);
+      if (isMatch) {
+        if (isExpired) {
+          anyExpiredMatch = true;
+        } else {
+          matchedRecord = record;
+          break;
+        }
+      }
+    }
+
+    if (!matchedRecord) {
+      if (anyExpiredMatch) {
+        return res.status(400).json({
+          success: false,
+          message: 'Your verification code has expired. Please request a new one.',
+        });
+      }
       return res.status(400).json({
         success: false,
         message: 'Incorrect verification code. Please check your email and try again.',
@@ -343,7 +370,7 @@ exports.resetPassword = async (req, res, next) => {
       [newPasswordHash, cleanEmail]
     );
 
-    // 5. Invalidate all reset codes for this email (single-use guarantee)
+    // 5. Invalidate all reset codes for this email (single-use guarantee across all generated codes)
     await query(
       'UPDATE password_resets SET used = TRUE WHERE LOWER(email) = $1',
       [cleanEmail]
